@@ -1,0 +1,10 @@
+DataBench/*
+!DataBench/.gitkeep
+TabFact/*
+!TabFact/.gitkeep
+TableBench/*
+!TableBench/.gitkeep
+TabularBenchmark/*
+!TabularBenchmark/.gitkeep
+WikiSQL/*
+!WikiSQL/.gitkeep
