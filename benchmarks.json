@@ -1,0 +1,71 @@
+{
+    "tab_fact": {
+        "dataset": "wenhu/tab_fact",
+        "subset": "",
+        "input_key": "statement",
+        "label_key": "label",
+        "metrics": [
+            "accuracy"
+        ]
+    },
+    "tabular_benchmark": {
+        "dataset": "inria-soda/tabular-benchmark",
+        "subset": "clf_num_MiniBooNE",
+        "input_key": "features",
+        "label_key": "target",
+        "metrics": [
+            "mnt_accuracy",
+            "r2"
+        ]
+    },
+    "tablebench": {
+        "dataset": "Multilingual-Multimodal-NLP/TableBench",
+        "subset": "",
+        "input_key": "question",
+        "label_key": "answer",
+        "metrics": [
+            "rougeL"
+        ]
+    },
+    "databench": {
+        "dataset": "cardiffnlp/databench",
+        "subset": "qa",
+        "input_key": "question",
+        "label_key": "answer",
+        "metrics": [
+            "accuracy"
+        ]
+    },
+    "wikisql": {
+        "dataset": "Salesforce/wikisql",
+        "subset": "",
+        "input_key": "question",
+        "label_key": "sql",
+        "metrics": [
+            "exec_accuracy",
+            "lf_accuracy"
+        ]
+    },
+    "mmlu": {
+        "dataset": "cais/mmlu",
+        "subset": "all",
+        "task_type": "multiple_choice",
+        "options_key": "choices",
+        "input_key": "question",
+        "label_key": "answer",
+        "metrics": [
+            "accuracy"
+        ]
+    },
+    "mmlu_pro": {
+        "dataset": "TIGER-Lab/MMLU-Pro",
+        "subset": "",
+        "task_type": "multiple_choice",
+        "options_key": "options",
+        "input_key": "question",
+        "label_key": "answer",
+        "metrics": [
+            "accuracy"
+        ]
+    }
+}
