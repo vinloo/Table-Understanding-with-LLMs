@@ -1,0 +1,8 @@
+datasets
+evaluate
+tqdm
+huggingface_hub
+wandb
+transformers
+torch
+python-dotenv

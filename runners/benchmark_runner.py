@@ -5,22 +5,22 @@ from tqdm import tqdm
 from prompts import get_prompt
 
 class BenchmarkRunner:
-    def __init__(self, benchmark):
+    def __init__(self, benchmark, debug):
         with open("benchmarks.json", "r") as f:
             self.benchmark = benchmark
             self.config = json.load(f)[benchmark]
+            self.debug = debug
 
     def run(self, model):
         dataset_config = self.config
 
         dataset_name = dataset_config.get("dataset")
         subset = dataset_config.get("subset")
-        task_type = dataset_config.get("task_type")
         input_key = dataset_config.get("input_key")
         label_key = dataset_config.get("label_key")
         metric_names = dataset_config.get("metrics", [])
 
-        ds = load_dataset(dataset_name, subset) if subset else load_dataset(dataset_name)
+        ds = load_dataset(dataset_name, subset, trust_remote_code=True) if subset else load_dataset(dataset_name, trust_remote_code=True)
 
         split = Split.TEST
         if Split.TEST not in ds:
@@ -31,14 +31,14 @@ class BenchmarkRunner:
         predictions = []
         references = []
 
-        for i, example in tqdm(enumerate(ds[split])):
+        for i, example in enumerate(tqdm(ds[split], total=len(ds[split]))):
             text = example.get(input_key)
             label = example.get(label_key)
 
             if text is None or label is None:
                 continue
 
-            if task_type == "multiple_choice":
+            if self.benchmark == "mmlu" or self.benchmark == "mmlu_pro":
                 options_key = dataset_config.get("options_key")
                 options = example.get(options_key)
                 prompt = get_prompt(self.benchmark, question=text, options=options)
@@ -46,6 +46,11 @@ class BenchmarkRunner:
 
                 if isinstance(label, str):
                     label = ord(label) - ord("A")
+            elif self.benchmark == 'tabfact':
+                table_text = example.get("table_text")
+                table_caption = example.get("table_caption")
+                prompt = get_prompt(self.benchmark, question=text, table_text=table_text, table_caption=table_caption)
+                pred = model.predict(prompt, options=["Refuted", "Entailed"])
 
             else:
                 prompt = get_prompt(self.benchmark, question=text)
@@ -53,8 +58,18 @@ class BenchmarkRunner:
 
             predictions.append(pred)
             references.append(label)
-            if i == 300:
-                break
+
+            if self.debug:
+                if i == 0:
+                    print("Debugging is enabled, printing first example:")
+                    print("Prompt:", prompt)
+                    print("Prediction:", pred)
+                    print("Reference:", label)
+                    print()
+                elif i == 100:
+                    print("Debugging is enabled, stopping after 100 examples.")
+                    break
+                
 
         results = {}
         for name, metric in metrics.items():

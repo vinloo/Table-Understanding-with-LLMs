@@ -1,14 +1,14 @@
 {
-    "tab_fact": {
+    "tabfact": {
         "dataset": "wenhu/tab_fact",
-        "subset": "",
+        "subset": "tab_fact",
         "input_key": "statement",
         "label_key": "label",
         "metrics": [
             "accuracy"
         ]
     },
-    "tabular_benchmark": {
+    "tabularbenchmark": {
         "dataset": "inria-soda/tabular-benchmark",
         "subset": "clf_num_MiniBooNE",
         "input_key": "features",
@@ -49,7 +49,6 @@
     "mmlu": {
         "dataset": "cais/mmlu",
         "subset": "all",
-        "task_type": "multiple_choice",
         "options_key": "choices",
         "input_key": "question",
         "label_key": "answer",
@@ -60,7 +59,6 @@
     "mmlu_pro": {
         "dataset": "TIGER-Lab/MMLU-Pro",
         "subset": "",
-        "task_type": "multiple_choice",
         "options_key": "options",
         "input_key": "question",
         "label_key": "answer",

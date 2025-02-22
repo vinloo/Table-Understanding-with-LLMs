@@ -24,6 +24,7 @@ def main():
         "-b",
         "--benchmark",
         type=str,
+        choices=["tabfact", "tabularbenchmark", "tablebench", "databench", "wikisql", "mmlu", "mmlu_pro"],
         required=True,
         help="Path to the benchmark config file."
     )
@@ -34,17 +35,30 @@ def main():
         default="baseline",
         choices=["baseline"]
     )
+    parser.add_argument(
+        "--nolog",
+        action="store_true",
+        help="Disable logging to wandb."
+    )
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        help="Enable debug mode."
+    )
     args = parser.parse_args()
 
     experiment_name = args.model + "-" + args.benchmark + "-" + args.experiment + "-" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
 
-    # Initialize WandB with credentials and CLI parameters from .env and terminal respectively
+    wandb_mode = "disabled" if args.nolog else "online"
+
+
     wandb.init(
         project=os.environ.get("WANDB_PROJECT", "table-understanding"),
         entity=os.environ.get("WANDB_ENTITY"),
         name=experiment_name,
         config=vars(args),
-        reinit=True
+        reinit=True,
+        mode=wandb_mode
     )
 
     if args.model == "llama3.1:8b":
@@ -52,14 +66,13 @@ def main():
     else:
         raise ValueError("Unsupported model selected.")
     
-    runner = BenchmarkRunner(args.benchmark)
+    runner = BenchmarkRunner(args.benchmark, args.debug)
     results = runner.run(model)
 
     print("Evaluation Results:")
     for metric, value in results.items():
         print(f"{metric}: {value}")
 
-    # Log results to WandB
     wandb.log(results)
 
 if __name__ == "__main__":
