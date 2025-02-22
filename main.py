@@ -5,7 +5,10 @@ from huggingface_hub import login
 import wandb
 import datetime
 from models import Llama3_1_8bModel
-from runners.benchmark_runner import BenchmarkRunner
+from benchmarks import TableBench
+from benchmarks.tabfact import TabFact
+from benchmarks.mmlu import MMLU
+from benchmarks.mmlu_pro import MMLUPro
 
 def main():
     dotenv.load_dotenv()
@@ -66,8 +69,18 @@ def main():
     else:
         raise ValueError("Unsupported model selected.")
     
-    runner = BenchmarkRunner(args.benchmark, args.debug)
-    results = runner.run(model)
+    if args.benchmark == "tablebench":
+        benchmark = TableBench()
+    elif args.benchmark == "tabfact":
+        benchmark = TabFact()
+    elif args.benchmark == "mmlu":
+        benchmark = MMLU()
+    elif args.benchmark == "mmlu_pro":
+        benchmark = MMLUPro()
+    else:
+        raise ValueError("Unsupported benchmark selected.")
+
+    results = benchmark.run(model)
 
     print("Evaluation Results:")
     for metric, value in results.items():

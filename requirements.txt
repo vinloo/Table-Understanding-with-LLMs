@@ -6,3 +6,7 @@ wandb
 transformers
 torch
 python-dotenv
+scikit-learn
+nltk
+rouge_score
+absl-py
