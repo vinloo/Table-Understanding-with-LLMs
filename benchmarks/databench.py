@@ -68,7 +68,6 @@ class DataBench:
 
         for task in subtasks:
             ds_task = ds.filter(lambda x: x['type'] == task)
-            count = 0
             for example in tqdm(ds_task[split], total=len(ds_task[split])):
                 label = example.get("sample_answer")
                 question = example.get("question")
@@ -80,9 +79,6 @@ class DataBench:
 
                 pred = model.generate(prompt, max_new_tokens=50)
                 pred = pred.split("ASSISTANT: ")[1].strip()
-                print("UNPARSED PREDI:", pred)
-                print("UNPARSED LABEL:", label)
-                print("TASK:          ", task)
 
                 try:
                     # try to get from the first opeining bracket to the last closing bracket
@@ -175,13 +171,7 @@ class DataBench:
                         label = [x.strip().lower() for x in label]
 
 
-                print("PARSED PREDI:", pred)
-                print("PARSED LABEL:", label)
-                print("TASK:        ", task)
-                print("\n\n")
-        
                 if isinstance(pred, list):
-                    # compute overlap
                     overlap = set(pred).intersection(set(label))
                     if len(overlap) > 0:
                         for i in range(len(overlap)):
@@ -197,17 +187,9 @@ class DataBench:
                     predictions[task].append(pred)
                     references[task].append(label)
                 
-                if count == 25:
-                    break
-                count += 1
-                
         results = {}
         for name, metric in metrics.items():
             for task in subtasks:
-                print("\n\nTASK:", task)
-                print("PRED:", predictions[task])
-                print("REF:", references[task])
-
                 preds = predictions[task]
                 refs = references[task]
 
