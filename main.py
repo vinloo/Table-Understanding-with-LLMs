@@ -5,10 +5,7 @@ from huggingface_hub import login
 import wandb
 import datetime
 from models import Llama3_1_8bModel
-from benchmarks import TableBench
-from benchmarks.tabfact import TabFact
-from benchmarks.mmlu import MMLU
-from benchmarks.mmlu_pro import MMLUPro
+from benchmarks import TableBench, TabFact, MMLU, MMLUPro, DataBench
 
 def main():
     dotenv.load_dotenv()
@@ -73,6 +70,8 @@ def main():
         benchmark = TableBench()
     elif args.benchmark == "tabfact":
         benchmark = TabFact()
+    elif args.benchmark == "databench":
+        benchmark = DataBench()
     elif args.benchmark == "mmlu":
         benchmark = MMLU()
     elif args.benchmark == "mmlu_pro":

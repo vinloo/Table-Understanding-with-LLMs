@@ -22,8 +22,7 @@ class TabFact:
             A) Refuted
             B) Entailed
 
-            Answer: 
-        """)
+            Answer: """)
         return prompt
 
     def run(self, model):
