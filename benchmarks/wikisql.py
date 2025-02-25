@@ -57,6 +57,9 @@ class WikiSQL:
         if Split.TEST not in ds:
             split = Split.VALIDATION if Split.VALIDATION in ds else Split.TRAIN
 
+        # cap to 1000 examples
+        ds[split] = ds[split].select(range(1000))
+
         predictions = []
         references = []
         tables = []
