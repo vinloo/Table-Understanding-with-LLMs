@@ -11,7 +11,7 @@ class DataBench:
     def get_prompt(self, table, question):
         prompt = textwrap.dedent("""\
             You are an assistant tasked with answering the questions asked of a given CSV in JSON format. 
-            You must answer in a single JSON with three fields:
+            You must answer in a single JSON with two fields:
                 * "answer": answer using information from
                 the provided CSV only.
                 * "columns_used": list of columns from the
