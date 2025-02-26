@@ -33,16 +33,21 @@ class WikiSQL:
 
     def execution_accuracy(self, predictions, references, tables):
         correct = 0
+        total = len(predictions)
         for pred, ref, data in zip(predictions, references, tables):
             data # ensure table is in locals scope
             try:
                 result_pred = ps.sqldf(pred, locals())
             except Exception as e:
                 continue
-            result_ref = ps.sqldf(ref, locals())
+            try:
+                result_ref = ps.sqldf(ref, locals())
+            except Exception as e:
+                total -= 1
+                continue
             if result_pred.equals(result_ref):
                 correct += 1
-        return correct / len(predictions) if references else 0.0
+        return correct / len(predictions) if total else 0.0
 
 
     def logical_form_accuracy(self, predictions, references):
