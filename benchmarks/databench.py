@@ -77,6 +77,9 @@ class DataBench:
                 table = table.to_csv(index=False)
                 prompt = self.get_prompt(table, question)
 
+                if len(prompt) > 10000:
+                    continue
+
                 pred = model.generate(prompt, max_new_tokens=50)
                 pred = pred.split("ASSISTANT: ")[1].strip()
 

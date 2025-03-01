@@ -36,7 +36,7 @@ class Llama3_1_8bModel:
                 max_new_tokens=max_new_tokens,
                 pad_token_id=self.tokenizer.eos_token_id,
                 **generate_kwargs
-            )
+            ).cpu() 
         
         return self.tokenizer.decode(outputs[0], skip_special_tokens=True)
 
@@ -49,10 +49,10 @@ class Llama3_1_8bModel:
         self.model.eval()
         with torch.no_grad():
             outputs = self.model(**inputs)
-            logits = outputs.logits[:, -1, :]
+            logits = outputs.logits[:, -1, :].cpu()
         
         probabilities = F.softmax(logits, dim=-1)
-        
+
         token_ids = self.tokenizer(choices, add_special_tokens=False).input_ids
         token_ids = [token[0] for token in token_ids]
         
