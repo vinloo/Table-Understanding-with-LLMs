@@ -176,13 +176,9 @@ class DataBench:
 
                 if isinstance(pred, list):
                     overlap = set(pred).intersection(set(label))
-                    if len(overlap) > 0:
-                        for i in range(len(overlap)):
-                            predictions[task].append(1)
-                            references[task].append(1)
-                        for i in range(len(label) - len(overlap)):
-                            predictions[task].append(0)
-                            references[task].append(1)
+                    if len(overlap) == len(pred):
+                        predictions[task].append(1)
+                        references[task].append(1)
                     else:
                         predictions[task].append(0)
                         references[task].append(1)

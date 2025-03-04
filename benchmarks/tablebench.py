@@ -1,5 +1,6 @@
 from datasets import load_dataset, Split
 import evaluate
+import re
 from tqdm import tqdm
 
 class TableBench:
@@ -36,7 +37,16 @@ class TableBench:
                 question = example.get("question")
                 prompt = example.get("instruction")
                 pred = model.generate(prompt, max_new_tokens=50)
-                pred = pred.split(question)[-1].strip()
+                
+                try:
+                    match = re.search(r"Final Answer: (.+)", pred)
+                    if match:
+                        pred = match.group(1)
+                    else:
+                        pred = ''
+                except Exception as e:
+                    pred = ''
+
                 predictions[task].append(pred)
                 references[task].append(label)
 
