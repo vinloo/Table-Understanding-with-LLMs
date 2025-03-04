@@ -6,6 +6,7 @@ from tqdm import tqdm
 class TableBench:
     def run(self, model):
         metric_names = ["rouge"]
+        subtasks = ["FactChecking", "NumericalReasoning", "DataAnalysis"] # we do not include Visualization as this does not fit the research
 
         ds = load_dataset("Multilingual-Multimodal-NLP/TableBench")
         ds = ds.filter(lambda x: x['instruction_type'] == 'DP')
@@ -30,13 +31,13 @@ class TableBench:
             "Visualization": []
         }
 
-        for task in ["FactChecking", "NumericalReasoning", "DataAnalysis", "Visualization"]:
+        for task in subtasks:
             ds_task = ds.filter(lambda x: x['qtype'] == task)
             for example in tqdm(ds_task[split], total=len(ds_task[split])):
                 label = example.get("answer")
                 question = example.get("question")
                 prompt = example.get("instruction")
-                pred = model.generate(prompt, max_new_tokens=50)
+                pred = model.generate(prompt, max_new_tokens=50).split(question)[-1]
                 
                 try:
                     match = re.search(r"Final Answer: (.+)", pred)
@@ -52,7 +53,7 @@ class TableBench:
 
         results = {}
         for name, metric in metrics.items():
-            for task in ["FactChecking", "NumericalReasoning", "DataAnalysis", "Visualization"]:
+            for task in subtasks:
                 results[f"rougeL/{task}"] = metric.compute(predictions=predictions[task], references=references[task])['rougeL']
 
         return results
