@@ -1,19 +1,25 @@
 from transformers import AutoModelForCausalLM, AutoTokenizer
 import torch
 import torch.nn.functional as F
+from accelerate import Accelerator
 
-class Llama3_1_8bModel:
+class Model:
 
-    def __init__(self, model_name="meta-llama/Llama-3.1-8b", device=None):
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
-        
-        self.model = AutoModelForCausalLM.from_pretrained(
-            model_name, 
-            trust_remote_code=True
+    def __init__(self, model_name, device=None):
+
+        model_map = {
+            "llama3.1:8b": "meta-llama/Llama-3.1-8b",
+            "llama3:70b": "meta-llama/Llama-3.1-70B"
+        }
+
+        self.tokenizer = AutoTokenizer.from_pretrained(model_map[model_name])
+        self.LLM = AutoModelForCausalLM.from_pretrained(
+            model_map[model_name], 
+            trust_remote_code=True,
         )
+        self.accelerator = Accelerator()
+        self.LLM = self.accelerator.prepare(self.LLM)
         
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu") if device is None else device
-        self.model.to(self.device)
 
     def generate(self, prompt, max_new_tokens=50, **generate_kwargs):
         """
@@ -27,11 +33,12 @@ class Llama3_1_8bModel:
         Returns:
           str: The generated text output.
         """
-        inputs = self.tokenizer(prompt, return_tensors="pt").to(self.device)
+        inputs = self.tokenizer(prompt, return_tensors="pt")
+        inputs = {key: value.to(self.accelerator.device) for key, value in inputs.items()}
         
-        self.model.eval()
+        self.LLM.eval()
         with torch.no_grad():
-            outputs = self.model.generate(
+            outputs = self.LLM.generate(
                 **inputs, 
                 max_new_tokens=max_new_tokens,
                 pad_token_id=self.tokenizer.eos_token_id,
@@ -41,14 +48,15 @@ class Llama3_1_8bModel:
         return self.tokenizer.decode(outputs[0], skip_special_tokens=True)
 
     def predict(self, prompt, options):
-        inputs = self.tokenizer(prompt, return_tensors="pt").to(self.device)
+        inputs = self.tokenizer(prompt, return_tensors="pt")
+        inputs = {key: value.to(self.accelerator.device) for key, value in inputs.items()}
 
         n_options = len(options)
         choices = [f"{chr(65 + i)}" for i in range(n_options)]
         
-        self.model.eval()
+        self.LLM.eval()
         with torch.no_grad():
-            outputs = self.model(**inputs)
+            outputs = self.LLM(**inputs)
             logits = outputs.logits[:, -1, :].cpu()
         
         probabilities = F.softmax(logits, dim=-1)

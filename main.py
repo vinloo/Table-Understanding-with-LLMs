@@ -4,7 +4,7 @@ import os
 from huggingface_hub import login
 import wandb
 import datetime
-from models import Llama3_1_8bModel
+from model import Model
 from benchmarks import TableBench, TabFact, MMLU, MMLUPro, DataBench, WikiSQL
 
 def main():
@@ -16,7 +16,7 @@ def main():
         "-m",
         "--model",
         type=str,
-        choices=["llama3.1:8b"],
+        choices=["llama3.1:8b", "llama3:70b"],
         required=True,
         help="Model to use for evaluation."
     )
@@ -51,7 +51,6 @@ def main():
 
     wandb_mode = "disabled" if args.nolog else "online"
 
-
     wandb.init(
         project=os.environ.get("WANDB_PROJECT", "table-understanding"),
         entity=os.environ.get("WANDB_ENTITY"),
@@ -61,11 +60,8 @@ def main():
         mode=wandb_mode
     )
 
-    if args.model == "llama3.1:8b":
-        model = Llama3_1_8bModel()
-    else:
-        raise ValueError("Unsupported model selected.")
-    
+    model = Model(args.model)
+        
     if args.benchmark == "tablebench":
         benchmark = TableBench()
     elif args.benchmark == "tabfact":
