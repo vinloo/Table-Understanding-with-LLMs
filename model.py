@@ -1,4 +1,4 @@
-from transformers import AutoModelForCausalLM, AutoTokenizer, GPTQConfig
+from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 import torch
 import os
 import torch.nn.functional as F
@@ -18,13 +18,19 @@ class Model:
         self.tokenizer.padding_side = "left" 
         self.tokenizer.pad_token = self.tokenizer.eos_token 
 
+        print("NUMBER OF GPUs:", torch.cuda.device_count())
+
         if self.platform == "cluster":
-            quantization_config = GPTQConfig(bits=4, dataset="c4-new", tokenizer=self.tokenizer)
+            quantization_config = BitsAndBytesConfig(
+                load_in_8bit=True,
+                llm_int8_threshold=6.0, 
+            )
             self.LLM = AutoModelForCausalLM.from_pretrained(
                 model_map[model_name], 
                 trust_remote_code=True,
-                device_map="auto",
-                quantization_config=quantization_config
+                device_map="balanced",
+                quantization_config=quantization_config,
+                max_memory={i: "40GiB" for i in range(torch.cuda.device_count())}
             )
         else:
             self.LLM = AutoModelForCausalLM.from_pretrained(

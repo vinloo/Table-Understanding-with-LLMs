@@ -11,6 +11,8 @@ nltk
 rouge_score
 absl-py
 pandasql
-gptqmodel
+auto-gptq
 optimum 
 peft
+bitsandbytes
+triton
