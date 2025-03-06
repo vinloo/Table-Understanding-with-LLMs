@@ -6,7 +6,6 @@ import wandb
 import datetime
 from model import Model
 from benchmarks import TableBench, TabFact, MMLU, MMLUPro, DataBench, WikiSQL
-
 def main():
     dotenv.load_dotenv()
     login(os.environ.get("HF_TOKEN"))
@@ -45,6 +44,12 @@ def main():
         action="store_true",
         help="Enable debug mode."
     )
+    parser.add_argument(
+        "--batch_size",
+        type=int,
+        default=1,
+        help="Batch size for processing prompts."
+    )
     args = parser.parse_args()
 
     experiment_name = args.model + "-" + args.benchmark + "-" + args.experiment + "-" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -77,7 +82,7 @@ def main():
     else:
         raise ValueError("Unsupported benchmark selected.")
 
-    results = benchmark.run(model)
+    results = benchmark.run(model, batch_size=args.batch_size)
 
     print("Evaluation Results:")
     for metric, value in results.items():

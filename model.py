@@ -1,25 +1,37 @@
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers import AutoModelForCausalLM, AutoTokenizer, GPTQConfig
 import torch
+import os
 import torch.nn.functional as F
-from accelerate import Accelerator
 
 class Model:
 
-    def __init__(self, model_name, device=None):
+    def __init__(self, model_name):
 
         model_map = {
             "llama3.1:8b": "meta-llama/Llama-3.1-8b",
             "llama3:70b": "meta-llama/Llama-3.1-70B"
         }
 
+        self.platform = os.environ.get("PLATFORM", "cluster")
+
         self.tokenizer = AutoTokenizer.from_pretrained(model_map[model_name])
-        self.LLM = AutoModelForCausalLM.from_pretrained(
-            model_map[model_name], 
-            trust_remote_code=True,
-        )
-        self.accelerator = Accelerator()
-        self.LLM = self.accelerator.prepare(self.LLM)
-        
+        self.tokenizer.padding_side = "left" 
+        self.tokenizer.pad_token = self.tokenizer.eos_token 
+
+        if self.platform == "cluster":
+            quantization_config = GPTQConfig(bits=4, dataset="c4-new", tokenizer=self.tokenizer)
+            self.LLM = AutoModelForCausalLM.from_pretrained(
+                model_map[model_name], 
+                trust_remote_code=True,
+                device_map="auto",
+                quantization_config=quantization_config
+            )
+        else:
+            self.LLM = AutoModelForCausalLM.from_pretrained(
+                model_map[model_name], 
+                trust_remote_code=True,
+            )
+            self.LLM.to("cuda")
 
     def generate(self, prompt, max_new_tokens=50, **generate_kwargs):
         """
@@ -33,40 +45,69 @@ class Model:
         Returns:
           str: The generated text output.
         """
-        inputs = self.tokenizer(prompt, return_tensors="pt")
-        inputs = {key: value.to(self.accelerator.device) for key, value in inputs.items()}
-        
         self.LLM.eval()
         with torch.no_grad():
-            outputs = self.LLM.generate(
-                **inputs, 
-                max_new_tokens=max_new_tokens,
-                pad_token_id=self.tokenizer.eos_token_id,
-                **generate_kwargs
-            ).cpu() 
-        
-        return self.tokenizer.decode(outputs[0], skip_special_tokens=True)
+            if isinstance(prompt, list) and len(prompt) > 1:
+                inputs = self.tokenizer(prompt, return_tensors="pt", padding=True, truncation=True)
+                if self.platform == "local":
+                    inputs = inputs.to("cuda")
+
+                outputs = self.LLM.generate(
+                    **inputs,
+                    max_new_tokens=max_new_tokens,
+                    pad_token_id=self.tokenizer.pad_token_id,
+                    **generate_kwargs
+                )
+                return [self.tokenizer.decode(output, skip_special_tokens=True) for output in outputs]
+            else:
+                if isinstance(prompt, list):
+                    prompt = prompt[0]
+                inputs = self.tokenizer(prompt, return_tensors="pt")
+                if self.platform == "local":
+                    inputs = inputs.to("cuda")
+                outputs = self.LLM.generate(
+                    **inputs, 
+                    max_new_tokens=max_new_tokens,
+                    pad_token_id=self.tokenizer.pad_token_id,
+                    **generate_kwargs
+                )
+                return [self.tokenizer.decode(outputs[0], skip_special_tokens=True)]
 
     def predict(self, prompt, options):
-        inputs = self.tokenizer(prompt, return_tensors="pt")
-        inputs = {key: value.to(self.accelerator.device) for key, value in inputs.items()}
-
-        n_options = len(options)
-        choices = [f"{chr(65 + i)}" for i in range(n_options)]
+        """
+        Predict the most probable option based on the prompt.
         
+        Parameters:
+          prompt (str): The input text to base the prediction on.
+          options (list): A list of option strings to choose from.
+          
+        Returns:
+          int: The index of the most probable option.
+        """
         self.LLM.eval()
         with torch.no_grad():
-            outputs = self.LLM(**inputs)
-            logits = outputs.logits[:, -1, :].cpu()
-        
-        probabilities = F.softmax(logits, dim=-1)
-
-        token_ids = self.tokenizer(choices, add_special_tokens=False).input_ids
-        token_ids = [token[0] for token in token_ids]
-        
-        token_probs = {choice: probabilities[0, token_id].item() for choice, token_id in zip(choices, token_ids)}
-        pred = max(token_probs, key=token_probs.get)
-        pred = choices.index(pred)
-
-        return pred
-
+            if isinstance(prompt, list) and len(prompt) > 1:
+                inputs = self.tokenizer(prompt, return_tensors="pt", padding=True, truncation=True)
+                if self.platform == "local":
+                    inputs = inputs.to("cuda")
+                outputs = self.LLM(**inputs)
+                logits = outputs.logits[:, -1, :]
+                probabilities = F.softmax(logits, dim=-1)
+                token_ids = [self.tokenizer(option, add_special_tokens=False).input_ids[0] for option in options]
+                results = []
+                for probs in probabilities:
+                    option_probs = [probs[token_id].item() for token_id in token_ids]
+                    results.append(int(torch.argmax(torch.tensor(option_probs))))
+                return results
+            else:
+                if isinstance(prompt, list):
+                    prompt = prompt[0]
+                inputs = self.tokenizer(prompt, return_tensors="pt")
+                if self.platform == "local":
+                    inputs = inputs.to("cuda")
+                outputs = self.LLM(**inputs)
+                logits = outputs.logits[:, -1, :]
+                probabilities = F.softmax(logits, dim=-1)
+                token_ids = [self.tokenizer(option, add_special_tokens=False).input_ids[0] for option in options]
+                option_probs = [probabilities[0, token_id].item() for token_id in token_ids]
+                return [int(torch.argmax(torch.tensor(option_probs)))]
