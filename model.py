@@ -14,23 +14,24 @@ class Model:
 
         self.platform = os.environ.get("PLATFORM", "cluster")
 
-        self.tokenizer = AutoTokenizer.from_pretrained(model_map[model_name])
+        self.tokenizer = AutoTokenizer.from_pretrained(model_map[model_name], revision="main")
         self.tokenizer.padding_side = "left" 
         self.tokenizer.pad_token = self.tokenizer.eos_token 
 
-        print("NUMBER OF GPUs:", torch.cuda.device_count())
+        n_gpus = torch.cuda.device_count()
+        print("NUMBER OF GPUs:", n_gpus)
 
         if self.platform == "cluster":
             quantization_config = BitsAndBytesConfig(
-                load_in_8bit=True,
-                llm_int8_threshold=6.0, 
+                load_in_4bit=True,
+                bnb_4bit_compute_dtype=torch.bfloat16,
+                bnb_4bit_quant_type="nf4"
             )
             self.LLM = AutoModelForCausalLM.from_pretrained(
                 model_map[model_name], 
                 trust_remote_code=True,
-                device_map="balanced",
+                device_map="auto",
                 quantization_config=quantization_config,
-                max_memory={i: "40GiB" for i in range(torch.cuda.device_count())}
             )
         else:
             self.LLM = AutoModelForCausalLM.from_pretrained(
@@ -38,6 +39,8 @@ class Model:
                 trust_remote_code=True,
             )
             self.LLM.to("cuda")
+
+        self.device = next(self.LLM.parameters()).device
 
     def generate(self, prompt, max_new_tokens=50, **generate_kwargs):
         """
@@ -52,12 +55,9 @@ class Model:
           str: The generated text output.
         """
         self.LLM.eval()
-        with torch.no_grad():
+        with torch.inference_mode(), torch.amp.autocast('cuda', dtype=torch.bfloat16):
             if isinstance(prompt, list) and len(prompt) > 1:
                 inputs = self.tokenizer(prompt, return_tensors="pt", padding=True, truncation=True)
-                if self.platform == "local":
-                    inputs = inputs.to("cuda")
-
                 outputs = self.LLM.generate(
                     **inputs,
                     max_new_tokens=max_new_tokens,
@@ -69,8 +69,6 @@ class Model:
                 if isinstance(prompt, list):
                     prompt = prompt[0]
                 inputs = self.tokenizer(prompt, return_tensors="pt")
-                if self.platform == "local":
-                    inputs = inputs.to("cuda")
                 outputs = self.LLM.generate(
                     **inputs, 
                     max_new_tokens=max_new_tokens,
@@ -91,29 +89,33 @@ class Model:
           int: The index of the most probable option.
         """
         self.LLM.eval()
-        with torch.no_grad():
-            if isinstance(prompt, list) and len(prompt) > 1:
-                inputs = self.tokenizer(prompt, return_tensors="pt", padding=True, truncation=True)
-                if self.platform == "local":
-                    inputs = inputs.to("cuda")
-                outputs = self.LLM(**inputs)
-                logits = outputs.logits[:, -1, :]
-                probabilities = F.softmax(logits, dim=-1)
-                token_ids = [self.tokenizer(option, add_special_tokens=False).input_ids[0] for option in options]
-                results = []
-                for probs in probabilities:
-                    option_probs = [probs[token_id].item() for token_id in token_ids]
-                    results.append(int(torch.argmax(torch.tensor(option_probs))))
-                return results
-            else:
-                if isinstance(prompt, list):
-                    prompt = prompt[0]
-                inputs = self.tokenizer(prompt, return_tensors="pt")
-                if self.platform == "local":
-                    inputs = inputs.to("cuda")
-                outputs = self.LLM(**inputs)
-                logits = outputs.logits[:, -1, :]
-                probabilities = F.softmax(logits, dim=-1)
-                token_ids = [self.tokenizer(option, add_special_tokens=False).input_ids[0] for option in options]
-                option_probs = [probabilities[0, token_id].item() for token_id in token_ids]
-                return [int(torch.argmax(torch.tensor(option_probs)))]
+    
+        n_options = len(options)
+        choices = [f"{chr(65 + i)}" for i in range(n_options)]
+
+        if isinstance(prompt, list):
+            inputs = self.tokenizer(prompt, return_tensors="pt", padding=True, truncation=True)
+        else:
+            inputs = self.tokenizer([prompt], return_tensors="pt") 
+
+        inputs = {key: value.to(self.device) for key, value in inputs.items()}
+
+        with torch.no_grad():    
+            outputs = self.LLM(**inputs)
+            del inputs
+            logits = outputs.logits[:, -1, :].detach().cpu()
+        
+        probabilities = F.softmax(logits, dim=-1)
+        # token_ids = [self.tokenizer(choice, add_special_tokens=False).input_ids for choice in choices]
+        token_ids = [self.tokenizer(f" {choice}", add_special_tokens=False).input_ids[0] for choice in choices]
+
+
+        preds = []
+        for probs in probabilities: 
+            option_probs = [probs[token_id].item() for token_id in token_ids]
+            preds.append(int(torch.argmax(torch.tensor(option_probs)).item()))
+
+        torch.cuda.empty_cache()
+
+        return preds
+                
