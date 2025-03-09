@@ -44,7 +44,8 @@ class MMLUPro:
             labels.append(label)
 
             if len(prompts) == batch_size:
-                batch_preds = model.predict(prompts, options=options_list[0])
+                longest_options = max(options_list, key=lambda opts: max(len(opt) for opt in opts))
+                batch_preds = model.predict(prompts, options=longest_options)
                 predictions.extend(batch_preds)
                 references.extend(labels)
                 prompts = []
@@ -52,7 +53,8 @@ class MMLUPro:
                 labels = []
 
         if prompts:
-            batch_preds = model.predict(prompts, options=options_list[0])
+            longest_options = max(options_list, key=lambda opts: max(len(opt) for opt in opts))
+            batch_preds = model.predict(prompts, options=longest_options)
             predictions.extend(batch_preds)
             references.extend(labels)
 
