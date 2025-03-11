@@ -55,27 +55,17 @@ class Model:
           str: The generated text output.
         """
         self.LLM.eval()
-        with torch.inference_mode(), torch.amp.autocast('cuda', dtype=torch.bfloat16):
-            if isinstance(prompt, list) and len(prompt) > 1:
-                inputs = self.tokenizer(prompt, return_tensors="pt", padding=True, truncation=True)
-                outputs = self.LLM.generate(
-                    **inputs,
-                    max_new_tokens=max_new_tokens,
-                    pad_token_id=self.tokenizer.pad_token_id,
-                    **generate_kwargs
-                )
-                return [self.tokenizer.decode(output, skip_special_tokens=True) for output in outputs]
-            else:
-                if isinstance(prompt, list):
-                    prompt = prompt[0]
-                inputs = self.tokenizer(prompt, return_tensors="pt")
-                outputs = self.LLM.generate(
-                    **inputs, 
-                    max_new_tokens=max_new_tokens,
-                    pad_token_id=self.tokenizer.pad_token_id,
-                    **generate_kwargs
-                )
-                return [self.tokenizer.decode(outputs[0], skip_special_tokens=True)]
+        inputs = self.tokenizer(prompt, return_tensors="pt")
+        inputs = {key: value.to(self.device) for key, value in inputs.items()}
+        with torch.no_grad():
+            outputs = self.LLM.generate(
+                **inputs, 
+                max_new_tokens=max_new_tokens,
+                pad_token_id=self.tokenizer.pad_token_id,
+                **generate_kwargs
+            )
+        torch.cuda.empty_cache()
+        return self.tokenizer.decode(outputs[0], skip_special_tokens=True)
 
     def predict(self, prompt, options):
         """
@@ -106,7 +96,6 @@ class Model:
             logits = outputs.logits[:, -1, :].detach().cpu()
         
         probabilities = F.softmax(logits, dim=-1)
-        # token_ids = [self.tokenizer(choice, add_special_tokens=False).input_ids for choice in choices]
         token_ids = [self.tokenizer(f" {choice}", add_special_tokens=False).input_ids[0] for choice in choices]
 
 

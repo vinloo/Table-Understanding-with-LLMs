@@ -55,109 +55,82 @@ class WikiSQL:
         return correct / len(predictions) if references else 0.0
 
 
-    def run(self, model, batch_size=1):
+    def run(self, model, batch_size=None):
         ds = load_dataset("Salesforce/wikisql", trust_remote_code=True)
+
         split = Split.TEST
         if Split.TEST not in ds:
             split = Split.VALIDATION if Split.VALIDATION in ds else Split.TRAIN
+
+        # cap to 1000 examples
         ds[split] = ds[split].select(range(1000))
+
         predictions = []
         references = []
         tables = []
-        prompts = []
-        examples = []
-        for example in tqdm(ds[split], desc="Processing WikiSQL examples"):
+
+        for example in tqdm(ds[split], total=len(ds[split])):
             label = example.get("sql")["human_readable"]
             question = example.get("question")
             table_info = example.get("table")
             table = pd.DataFrame(table_info["rows"], columns=table_info["header"])
+            
             table_csv = table.to_csv(index=False)
             prompt = self.get_prompt(table_csv, question)
-            prompts.append(prompt)
-            examples.append((label, table, question))
-            if len(prompts) == batch_size:
-                batch_preds = model.generate(prompts, max_new_tokens=50)
-                for pred, (label, table, question) in zip(batch_preds, examples):
-                    pred = pred.split("ASSISTANT: ")[1].strip()
-                    try:
-                        pred = json.loads(pred[pred.find("{"):pred.rfind("}")+1])
-                        pred = pred["sql_query"]
-                    except JSONDecodeError:
-                        pred = pred.split('sql_query":')[1].strip()
-                        try:
-                            pred = pred[pred.find("{")+1:pred.find(",")].strip()
-                        except ValueError:
-                            try:
-                                pred = pred[pred.find("{")+1:pred.find("}")].strip()
-                            except ValueError:
-                                print("Failed to parse sql_query")
-                                
-                    pred = pred.replace('"', "'")
-                    pred = pred.replace("FROM 'table'", "FROM data")
-                    pred = pred.replace("FROM table", "FROM data")
-                    pred = pred.replace("from table", "from data")
-                    pred = pred.replace("from 'table'", "from data")
-                    label = label.replace("FROM table", "FROM data")
-                    label = label.replace("FROM 'table'", "FROM data")
-                    label = label.replace('"', "'")
-                    conditions = example.get("sql")["conds"]["condition"]
-                    for condition in conditions:
-                        if f"'{condition}'" not in label:
-                            label = label.replace(f"{condition}", f"'{condition}'")
-                        if f"'{condition}'" not in pred and f"{condition}" in pred:
-                            pred = pred.replace(f"{condition}", f"'{condition}'")
-                    for col in table.columns:
-                        if f"{col}" in label and f"'{col}'" not in label:
-                            label = label.replace(f"{col}", f"'{col}'")
-                        if f"{col}" in pred and f"'{col}'" not in pred:
-                            pred = pred.replace(f"{col}", f"'{col}'")
-                    pred = re.sub(r"COUNT '([^']*)'", r"COUNT('\1')", label)
-                    predictions.append(pred)
-                    references.append(label)
-                    tables.append(table)
-                prompts = []
-                examples = []
 
-        if prompts:
-            batch_preds = model.generate(prompts, max_new_tokens=50)
-            for pred, (label, table, question) in zip(batch_preds, examples):
-                pred = pred.split("ASSISTANT: ")[1].strip()
+            pred = model.generate(prompt, max_new_tokens=50)
+            pred = pred.split("ASSISTANT: ")[1].strip()
+
+            try:
+                # try to get from the first opeining bracket to the last closing bracket
+                pred = json.loads(pred[pred.find("{"):pred.rfind("}")+1])
+                pred = pred["sql_query"]
+            except JSONDecodeError:
+                # if the json is not well formatted, try to get the first object between : and , OR : and }
+                pred = pred.split('sql_query":')[1].strip()
                 try:
-                    pred = json.loads(pred[pred.find("{"):pred.rfind("}")+1])
-                    pred = pred["sql_query"]
-                except JSONDecodeError:
-                    pred = pred.split('sql_query":')[1].strip()
+                    pred = pred[pred.find("{")+1:pred.find(",")].strip()
+                except ValueError:
                     try:
-                        pred = pred[pred.find("{")+1:pred.find(",")].strip()
+                        pred = pred[pred.find("{")+1:pred.find("}")].strip()
                     except ValueError:
-                        try:
-                            pred = pred[pred.find("{")+1:pred.find("}")].strip()
-                        except ValueError:
-                            print("Failed to parse sql_query")
-                pred = pred.replace('"', "'")
-                pred = pred.replace("FROM 'table'", "FROM data")
-                pred = pred.replace("FROM table", "FROM data")
-                pred = pred.replace("from table", "from data")
-                pred = pred.replace("from 'table'", "from data")
-                label = label.replace("FROM table", "FROM data")
-                label = label.replace("FROM 'table'", "FROM data")
-                label = label.replace('"', "'")
-                conditions = example.get("sql")["conds"]["condition"]
-                for condition in conditions:
-                    if f"'{condition}" not in label:
-                        label = label.replace(f"{condition}", f"'{condition}'")
-                    if f"'{condition}'" not in pred and f"{condition}" in pred:
-                        pred = pred.replace(f"{condition}", f"'{condition}'")
-                for col in table.columns:
-                    if f"{col}" in label and f"'{col}'" not in label:
-                        label = label.replace(f"{col}", f"'{col}'")
-                    if f"{col}" in pred and f"'{col}'" not in pred:
-                        pred = pred.replace(f"{col}", f"'{col}'")
-                pred = re.sub(r"COUNT '([^']*)'", r"COUNT('\1')", label)
-                predictions.append(pred)
-                references.append(label)
-                tables.append(table)
+                        print("Failed to parse sql_query")
+
+
+            pred = pred.replace('"', "'")
+            pred = pred.replace("FROM 'table'", "FROM data")
+            pred = pred.replace("FROM table", "FROM data")
+            pred = pred.replace("from table", "from data")
+            pred = pred.replace("from 'table'", "from data")
+            label = label.replace("FROM table", "FROM data")
+            label = label.replace("FROM 'table'", "FROM data")
+            label = label.replace('"', "'")
+
+            conditions = example.get("sql")["conds"]["condition"]
+            for condition in conditions:
+                if f"'{condition}'" not in label:
+                    label = label.replace(f"{condition}", f"'{condition}'")
+                if f"'{condition}'" not in pred and f"{condition}" in pred:
+                    pred = pred.replace(f"{condition}", f"'{condition}'")
+            for col in table.columns:
+                if f"{col}" in label and f"'{col}'" not in label:
+                    label = label.replace(f"{col}", f"'{col}'")
+                if f"{col}" in pred and f"'{col}'" not in pred:
+                    pred = pred.replace(f"{col}", f"'{col}'")
+
+            # fix some operatores which are somehow wrong in the dataset labels
+            label = re.sub(r"COUNT '([^']*)'", r"COUNT('\1')", label)
+            label = re.sub(r"MIN '([^']*)'", r"MIN('\1')", label)
+            label = re.sub(r"MAX '([^']*)'", r"MAX('\1')", label)
+            label = re.sub(r"SUM '([^']*)'", r"SUM('\1')", label)
+            label = re.sub(r"AVG '([^']*)'", r"AVG('\1')", label)
+
+            predictions.append(pred)
+            references.append(label)
+            tables.append(table)
+            
         results = {}
         results[f"exec_accuracy"] = self.execution_accuracy(predictions=predictions, references=references, tables=tables)
         results[f"lf_accuracy"] = self.logical_form_accuracy(predictions=predictions, references=references)
+
         return results
