@@ -45,7 +45,7 @@ class WikiSQL:
             except Exception as e:
                 total -= 1
                 continue
-            if result_pred.equals(result_ref):
+            if result_pred is not None and result_pred.equals(result_ref):
                 correct += 1
         return correct / len(predictions) if total else 0.0
 
