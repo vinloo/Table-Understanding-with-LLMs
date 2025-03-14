@@ -9,7 +9,8 @@ class Model:
 
         model_map = {
             "llama3.1:8b": "meta-llama/Llama-3.1-8b",
-            "llama3:70b": "meta-llama/Llama-3.1-70B"
+            "llama3:70b": "meta-llama/Llama-3.1-70B",
+            "jellyfish": "NECOUDBFM/Jellyfish-13B"
         }
 
         self.platform = os.environ.get("PLATFORM", "cluster")

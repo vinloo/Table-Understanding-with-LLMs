@@ -5,19 +5,37 @@ from tqdm import tqdm
 
 class MMLU:
 
-    def get_prompt(self, question, options):
-        choices = [f"{chr(65 + i)}) {options[i]}" for i in range(len(options))]
+    def get_prompt(self, question, options, experiment):
+        # baseline experiment
+        if experiment == "baseline":
+            choices = [f"{chr(65 + i)}) {options[i]}" for i in range(len(options))]
 
-        prompt = f"Questions: {question}\n\nOptions:\n"
+            prompt = f"Questions: {question}\n\nOptions:\n"
 
-        for choice in choices:
-            prompt += f"\n{choice}"
+            for choice in choices:
+                prompt += f"\n{choice}"
 
-        prompt += "\n\nAnswer: "
+            prompt += "\n\nAnswer: "
+
+        # explicit prompt experiment
+        elif experiment == "explicit_prompt":
+            choices = [f"{chr(65 + i)}) {options[i]}" for i in range(len(options))]
+
+            prompt = (
+                "You are given a multiple-choice question. Carefully read the question "
+                "and select the correct answer from the provided options. Respond only "
+                "with the letter corresponding to the correct choice.\n\n"
+                f"Question: {question}\n\nOptions:\n"
+            )
+
+            for choice in choices:
+                prompt += f"\n{choice}"
+
+            prompt += "\n\nAnswer: "
 
         return prompt
 
-    def run(self, model, batch_size=1):
+    def run(self, model, experiment, batch_size=1):
         ds = load_dataset("cais/mmlu", "all")
 
         split = Split.TEST if Split.TEST in ds else (Split.VALIDATION if Split.VALIDATION in ds else Split.TRAIN)
@@ -36,7 +54,7 @@ class MMLU:
             question = example["question"]
             options = example["choices"]
             label = example["answer"]
-            prompt = self.get_prompt(question, options)
+            prompt = self.get_prompt(question, options, experiment)
 
             prompts.append(prompt)
             options_list.append(options)

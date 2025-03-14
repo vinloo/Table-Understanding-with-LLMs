@@ -4,28 +4,54 @@ import evaluate
 from tqdm import tqdm
 
 class TabFact:
-    def get_prompt(self, statement, table_text, table_caption):
-        prompt = textwrap.dedent(f"""\
-            Statement: {statement}
 
-            Table:
-            """)
-        prompt += table_text
-        prompt += textwrap.dedent(f"""\
-                                
-            Caption: {table_caption}
+    def get_prompt(self, statement, table_text, table_caption, experiment):
+        # Baseline experiment
+        if experiment == "baseline":
+            prompt = textwrap.dedent(f"""\
+                Statement: {statement}
 
-            Is the statement entailed or refuted by the table?
+                Table:
+                """)
+            prompt += table_text
+            prompt += textwrap.dedent(f"""\
+                                    
+                Caption: {table_caption}
 
-            Options:
+                Is the statement entailed or refuted by the table?
 
-            A) Refuted
-            B) Entailed
+                Options:
 
-            Answer: """)
+                A) Refuted
+                B) Entailed
+
+                Answer: """)
+
+        # Explicit prompt experiment
+        elif experiment == "explicit_prompt":
+            prompt = textwrap.dedent(f"""\
+                You are given a table and a statement. Your task is to determine whether the statement 
+                is supported by the information in the table (Entailed) or contradicts it (Refuted). 
+
+                Statement: {statement}
+
+                Table:
+                """)
+            prompt += table_text
+            prompt += textwrap.dedent(f"""\
+
+                Caption: {table_caption}
+
+                Based on the table, choose the most accurate option:
+
+                A) Refuted — The table contradicts the statement.
+                B) Entailed — The table supports the statement.
+
+                Answer: """)
+
         return prompt
 
-    def run(self, model, batch_size=1):
+    def run(self, model, experiment, batch_size=1):
         ds = load_dataset("wenhu/tab_fact", "tab_fact", trust_remote_code=True)
         split = Split.TEST
         if Split.TEST not in ds:
@@ -40,7 +66,7 @@ class TabFact:
             label = example.get("label")
             table_text = example.get("table_text")
             table_caption = example.get("table_caption")
-            prompt = self.get_prompt(statement=statement, table_text=table_text, table_caption=table_caption)
+            prompt = self.get_prompt(statement=statement, table_text=table_text, table_caption=table_caption, experiment=experiment)
             prompts.append(prompt)
             labels.append(label)
             if len(prompts) == batch_size:

@@ -8,26 +8,56 @@ import pandas as pd
 
 class DataBench:
 
-    def get_prompt(self, table, question):
-        prompt = textwrap.dedent("""\
-            You are an assistant tasked with answering the questions asked of a given CSV in JSON format. 
-            You must answer in a single JSON with two fields:
-                * "answer": answer using information from
-                the provided CSV only.
-                * "columns_used": list of columns from the
-                CSV used to get the answer.
-            Requirements:
-                * Only respond with the JSON.
-            In the following CSV
-            ```csv
-            """)
-        
-        prompt += table
+    def get_prompt(self, table, question, experiment):
+        # Baseline experiment
+        if experiment == "baseline":
+            prompt = textwrap.dedent("""\
+                You are an assistant tasked with answering the questions asked of a given CSV in JSON format. 
+                You must answer in a single JSON with two fields:
+                    * "answer": answer using information from
+                    the provided CSV only.
+                    * "columns_used": list of columns from the
+                    CSV used to get the answer.
+                Requirements:
+                    * Only respond with the JSON.
+                In the following CSV
+                ```csv
+                """)
             
-        prompt += textwrap.dedent(f"""\
-            ```
-            USER: {question}
-            ASSISTANT: {{"answer":""")
+            prompt += table
+                
+            prompt += textwrap.dedent(f"""\
+                ```
+                USER: {question}
+                ASSISTANT: {{"answer":""")
+        
+        # Explicit prompt experiment
+        elif experiment == "explicit_prompt":
+            prompt = textwrap.dedent("""\
+                You are an AI assistant that answers questions based on the provided CSV dataset. 
+                Your response must be in JSON format with the following structure:
+
+                {{
+                    "answer": "<answer using information from the CSV>",
+                    "columns_used": ["<list of relevant columns used>"]
+                }}
+
+                Guidelines:
+                - Your answer must be derived strictly from the CSV data.
+                - List only the columns directly used to determine the answer.
+                - Respond **only** with the JSON. Do not include explanations.
+
+                Here is the CSV dataset:
+                ```csv
+                """)
+            
+            prompt += table
+
+            prompt += textwrap.dedent(f"""\
+                ```
+                USER: {question}
+                ASSISTANT: {{"answer":""")
+
         return prompt
     
 
@@ -39,7 +69,7 @@ class DataBench:
         return correct / len(predictions) if references else 0.0
 
 
-    def run(self, model, batch_size=None):
+    def run(self, model, experiment, batch_size=None):
         # batching does not work for this benchmark
         metric_names = ["accuracy"]
         ds = load_dataset("cardiffnlp/databench", "qa")
@@ -76,7 +106,7 @@ class DataBench:
                 table_id = example['dataset']
                 table = pd.read_parquet(f"hf://datasets/cardiffnlp/databench/data/{table_id}/sample.parquet")
                 table = table.to_csv(index=False)
-                prompt = self.get_prompt(table, question)
+                prompt = self.get_prompt(table, question, experiment)
 
                 if len(prompt) > 10000:
                     continue

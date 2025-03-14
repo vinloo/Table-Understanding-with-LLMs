@@ -3,19 +3,36 @@ import evaluate
 from tqdm import tqdm
 
 class MMLUPro:
-    def get_prompt(self, question, options):
-        choices = [f"{chr(65 + i)}) {options[i]}" for i in range(len(options))]
+    def get_prompt(self, question, options, experiment):
+        # baseline experiment
+        if experiment == "baseline":
+            choices = [f"{chr(65 + i)}) {options[i]}" for i in range(len(options))]
 
-        prompt = f"Questions: {question}\n\nOptions:\n"
+            prompt = f"Questions: {question}\n\nOptions:\n"
 
-        for choice in choices:
-            prompt += f"\n{choice}"
+            for choice in choices:
+                prompt += f"\n{choice}"
 
-        prompt += "\n\nAnswer: "
+            prompt += "\n\nAnswer: "
 
-        return prompt
+        # explicit prompt experiment
+        elif experiment == "explicit_prompt":
+            choices = [f"{chr(65 + i)}) {options[i]}" for i in range(len(options))]
+
+            prompt = (
+                "You are given a multiple-choice question. Carefully read the question "
+                "and select the correct answer from the provided options. Respond only "
+                "with the letter corresponding to the correct choice.\n\n"
+                f"Question: {question}\n\nOptions:\n"
+            )
+
+            for choice in choices:
+                prompt += f"\n{choice}"
+
+            prompt += "\n\nAnswer: "
+            return prompt
     
-    def run(self, model, batch_size=1):
+    def run(self, model, experiment, batch_size=1):
         ds = load_dataset("TIGER-Lab/MMLU-Pro")
 
         split = Split.TEST
@@ -34,7 +51,7 @@ class MMLUPro:
             question = example.get("question")
             options = example.get("options")
             label = example.get("answer")
-            prompt = self.get_prompt(question, options)
+            prompt = self.get_prompt(question, options, experiment)
             prompts.append(prompt)
             options_list.append(options)
 

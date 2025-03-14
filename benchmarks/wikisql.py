@@ -9,25 +9,54 @@ import re
 
 class WikiSQL:
 
-    def get_prompt(self, table, question):
-        prompt = textwrap.dedent("""\
-            You are an assistant tasked with answering the questions asked of a given CSV in JSON format. 
-            You must answer in a single JSON with one field:
-                * "sql_query": the sql query required to answer the question.
-            Requirements:
-                * Only respond with the JSON.
-                * The table's name to select from is 'table'.
-                                 
-            In the following CSV
-            ```csv
-            """)
-        
-        prompt += table
+    def get_prompt(self, table, question, experiment):
+        # Baseline experiment
+        if experiment == "baseline":
+            prompt = textwrap.dedent("""\
+                You are an assistant tasked with answering the questions asked of a given CSV in JSON format. 
+                You must answer in a single JSON with one field:
+                    * "sql_query": the sql query required to answer the question.
+                Requirements:
+                    * Only respond with the JSON.
+                    * The table's name to select from is 'table'.
+                                    
+                In the following CSV
+                ```csv
+                """)
             
-        prompt += textwrap.dedent(f"""\
-            ```
-            USER: {question}
-            ASSISTANT: {{"sql_query": \"""")
+            prompt += table
+                
+            prompt += textwrap.dedent(f"""\            
+                ```
+                USER: {question}
+                ASSISTANT: {{"sql_query": \"""")
+        
+        # Explicit prompt experiment
+        elif experiment == "explicit_prompt":
+            prompt = textwrap.dedent("""\
+                You are an AI assistant that translates natural language questions into SQL queries based on a provided CSV dataset. 
+                Your response must be in JSON format with the following structure:
+
+                {{
+                    "sql_query": "<generated SQL query>"
+                }}
+
+                Guidelines:
+                - Use the table name 'table' in your query.
+                - Ensure the SQL accurately answers the question.
+                - Respond **only** with the JSON output. Do not include explanations.
+                
+                Here is the CSV dataset:
+                ```csv
+                """)
+            
+            prompt += table
+
+            prompt += textwrap.dedent(f"""\            
+                ```
+                USER: {question}
+                ASSISTANT: {{"sql_query": \"""")
+        
         return prompt
     
 
@@ -55,7 +84,7 @@ class WikiSQL:
         return correct / len(predictions) if references else 0.0
 
 
-    def run(self, model, batch_size=None):
+    def run(self, model, experiment, batch_size=None):
         ds = load_dataset("Salesforce/wikisql", trust_remote_code=True)
 
         split = Split.TEST
@@ -76,7 +105,7 @@ class WikiSQL:
             table = pd.DataFrame(table_info["rows"], columns=table_info["header"])
             
             table_csv = table.to_csv(index=False)
-            prompt = self.get_prompt(table_csv, question)
+            prompt = self.get_prompt(table_csv, question, experiment)
 
             pred = model.generate(prompt, max_new_tokens=50)
             pred = pred.split("ASSISTANT: ")[1].strip()

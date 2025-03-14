@@ -15,7 +15,7 @@ def main():
         "-m",
         "--model",
         type=str,
-        choices=["llama3.1:8b", "llama3:70b"],
+        choices=["llama3.1:8b", "llama3:70b", "jellyfish"],
         required=True,
         help="Model to use for evaluation."
     )
@@ -32,7 +32,7 @@ def main():
         "--experiment",
         type=str,
         default="baseline",
-        choices=["baseline"]
+        choices=["baseline", "explicit_prompt"],
     )
     parser.add_argument(
         "--nolog",
@@ -82,7 +82,7 @@ def main():
     else:
         raise ValueError("Unsupported benchmark selected.")
 
-    results = benchmark.run(model, batch_size=args.batch_size)
+    results = benchmark.run(model, args.experiment, batch_size=args.batch_size)
 
     print("Evaluation Results:")
     for metric, value in results.items():
