@@ -212,7 +212,7 @@ class DataBench:
                 if isinstance(pred, list):
                     if not isinstance(label, list):
                         label = [label]
-                    overlap = set(pred).intersection(set(label))
+                    overlap = self.list_to_set(pred).intersection(self.list_to_set(label))
                     if len(overlap) == len(pred):
                         predictions[task].append(1)
                         references[task].append(1)
@@ -232,3 +232,12 @@ class DataBench:
                 results[f"{name}/{task}"] = self.custom_accuracy(predictions=preds, references=refs)
 
         return results
+    
+    def list_to_set(self, lst):
+        result = set()
+        for item in lst:
+            try:
+                result.add(item)
+            except TypeError:
+                continue  # Skip unhashable items
+        return result

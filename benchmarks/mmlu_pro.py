@@ -30,7 +30,7 @@ class MMLUPro:
                 prompt += f"\n{choice}"
 
             prompt += "\n\nAnswer: "
-            return prompt
+        return prompt
     
     def run(self, model, experiment, batch_size=1):
         ds = load_dataset("TIGER-Lab/MMLU-Pro")

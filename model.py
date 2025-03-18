@@ -14,7 +14,7 @@ class Model:
         }
 
         self.platform = os.environ.get("PLATFORM", "cluster")
-
+        self.model_type = model_name
         self.tokenizer = AutoTokenizer.from_pretrained(model_map[model_name], revision="main")
         self.tokenizer.padding_side = "left" 
         self.tokenizer.pad_token = self.tokenizer.eos_token 
@@ -97,7 +97,11 @@ class Model:
             logits = outputs.logits[:, -1, :].detach().cpu()
         
         probabilities = F.softmax(logits, dim=-1)
-        token_ids = [self.tokenizer(f" {choice}", add_special_tokens=False).input_ids[0] for choice in choices]
+
+        if self.model_type.lower() == 'jellyfish':
+            token_ids = [self.tokenizer(choice, add_special_tokens=False).input_ids[0] for choice in choices]
+        else:
+            token_ids = [self.tokenizer(f" {choice}", add_special_tokens=False).input_ids[0] for choice in choices]
 
 
         preds = []
