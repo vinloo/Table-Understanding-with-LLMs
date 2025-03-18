@@ -2,6 +2,8 @@ from datasets import load_dataset, Split
 import textwrap
 import evaluate
 from tqdm import tqdm
+import pandas as pd
+from io import StringIO
 
 class TabFact:
 
@@ -26,9 +28,16 @@ class TabFact:
                 B) Entailed
 
                 Answer: """)
-
-        # Explicit prompt experiment
-        elif experiment == "explicit_prompt":
+        else:
+            table = pd.read_csv(StringIO(table_text), sep='#')
+            if experiment == "explicit_prompt":
+                serialized_table = table_text
+            elif experiment == "serialize_csv":
+                serialized_table = table.to_csv(index=False)
+            elif experiment == "serialize_json":
+                serialized_table = table.to_json(index=False)
+            elif experiment == "serialize_markdown":
+                serialized_table = table.to_markdown(index=False)
             prompt = textwrap.dedent(f"""\
                 You are given a table and a statement. Your task is to determine whether the statement 
                 is supported by the information in the table (Entailed) or contradicts it (Refuted). 
@@ -37,7 +46,7 @@ class TabFact:
 
                 Table:
                 """)
-            prompt += table_text
+            prompt += serialized_table
             prompt += textwrap.dedent(f"""\
 
                 Caption: {table_caption}
@@ -48,7 +57,7 @@ class TabFact:
                 B) Entailed — The table supports the statement.
 
                 Answer: """)
-
+            
         return prompt
 
     def run(self, model, experiment, batch_size=1):

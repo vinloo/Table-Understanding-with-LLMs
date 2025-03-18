@@ -24,39 +24,44 @@ class DataBench:
                 ```csv
                 """)
             
-            prompt += table
+            prompt += table.to_csv(index=False)
                 
             prompt += textwrap.dedent(f"""\
                 ```
                 USER: {question}
                 ASSISTANT: {{"answer":""")
         
-        # Explicit prompt experiment
-        elif experiment == "explicit_prompt":
-            prompt = textwrap.dedent("""\
-                You are an AI assistant that answers questions based on the provided CSV dataset. 
-                Your response must be in JSON format with the following structure:
+        else:
+            if experiment == "explicit_prompt":
+                serialized_table = table.to_csv(index=False)
+            elif experiment == "serialize_json":
+                serialized_table = table.to_json(index=False)
+            elif experiment == "serialize_markdown":
+                serialized_table = table.to_markdown(index=False)
+        prompt = textwrap.dedent("""\
+            You are an AI assistant that answers questions based on the provided CSV dataset. 
+            Your response must be in JSON format with the following structure:
 
-                {{
-                    "answer": "<answer using information from the CSV>",
-                    "columns_used": ["<list of relevant columns used>"]
-                }}
+            {{
+                "answer": "<answer using information from the CSV>",
+                "columns_used": ["<list of relevant columns used>"]
+            }}
 
-                Guidelines:
-                - Your answer must be derived strictly from the CSV data.
-                - List only the columns directly used to determine the answer.
-                - Respond **only** with the JSON. Do not include explanations.
+            Guidelines:
+            - Your answer must be derived strictly from the CSV data.
+            - List only the columns directly used to determine the answer.
+            - Respond **only** with the JSON. Do not include explanations.
 
-                Here is the CSV dataset:
-                ```csv
-                """)
-            
-            prompt += table
+            Here is the CSV dataset:
+            ```csv
+            """)
+        
+        prompt += serialized_table
 
-            prompt += textwrap.dedent(f"""\
-                ```
-                USER: {question}
-                ASSISTANT: {{"answer":""")
+        prompt += textwrap.dedent(f"""\
+            ```
+            USER: {question}
+            ASSISTANT: {{"answer":""")
 
         return prompt
     
@@ -105,7 +110,6 @@ class DataBench:
                 
                 table_id = example['dataset']
                 table = pd.read_parquet(f"hf://datasets/cardiffnlp/databench/data/{table_id}/sample.parquet")
-                table = table.to_csv(index=False)
                 prompt = self.get_prompt(table, question, experiment)
 
                 if len(prompt) > 10000:
@@ -206,6 +210,8 @@ class DataBench:
 
 
                 if isinstance(pred, list):
+                    if not isinstance(label, list):
+                        label = [label]
                     overlap = set(pred).intersection(set(label))
                     if len(overlap) == len(pred):
                         predictions[task].append(1)

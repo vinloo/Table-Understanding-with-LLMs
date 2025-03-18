@@ -24,38 +24,43 @@ class WikiSQL:
                 ```csv
                 """)
             
-            prompt += table
+            prompt += table.to_csv(index=False)
                 
             prompt += textwrap.dedent(f"""\            
                 ```
                 USER: {question}
                 ASSISTANT: {{"sql_query": \"""")
         
-        # Explicit prompt experiment
-        elif experiment == "explicit_prompt":
-            prompt = textwrap.dedent("""\
-                You are an AI assistant that translates natural language questions into SQL queries based on a provided CSV dataset. 
-                Your response must be in JSON format with the following structure:
+        else:
+            if experiment == "explicit_prompt":
+                serialized_table = table.to_csv(index=False)
+            elif experiment == "serialize_json":
+                serialized_table = table.to_json(index=False)
+            elif experiment == "serialize_markdown":
+                serialized_table = table.to_markdown(index=False)
+        prompt = textwrap.dedent("""\
+            You are an AI assistant that translates natural language questions into SQL queries based on a provided CSV dataset. 
+            Your response must be in JSON format with the following structure:
 
-                {{
-                    "sql_query": "<generated SQL query>"
-                }}
+            {{
+                "sql_query": "<generated SQL query>"
+            }}
 
-                Guidelines:
-                - Use the table name 'table' in your query.
-                - Ensure the SQL accurately answers the question.
-                - Respond **only** with the JSON output. Do not include explanations.
-                
-                Here is the CSV dataset:
-                ```csv
-                """)
+            Guidelines:
+            - Use the table name 'table' in your query.
+            - Ensure the SQL accurately answers the question.
+            - Respond **only** with the JSON output. Do not include explanations.
             
-            prompt += table
+            Here is the CSV dataset:
+            ```csv
+            """)
+        
+        prompt += serialized_table
 
-            prompt += textwrap.dedent(f"""\            
-                ```
-                USER: {question}
-                ASSISTANT: {{"sql_query": \"""")
+        prompt += textwrap.dedent(f"""\            
+            ```
+            USER: {question}
+            ASSISTANT: {{"sql_query": \"""")
         
         return prompt
     
@@ -104,8 +109,8 @@ class WikiSQL:
             table_info = example.get("table")
             table = pd.DataFrame(table_info["rows"], columns=table_info["header"])
             
-            table_csv = table.to_csv(index=False)
-            prompt = self.get_prompt(table_csv, question, experiment)
+            # table_csv = table.to_csv(index=False)
+            prompt = self.get_prompt(table, question, experiment)
 
             pred = model.generate(prompt, max_new_tokens=50)
             pred = pred.split("ASSISTANT: ")[1].strip()

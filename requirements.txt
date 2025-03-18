@@ -16,3 +16,4 @@ optimum
 peft
 bitsandbytes
 triton
+tabulate

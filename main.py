@@ -32,7 +32,7 @@ def main():
         "--experiment",
         type=str,
         default="baseline",
-        choices=["baseline", "explicit_prompt"],
+        choices=["baseline", "explicit_prompt", "serialize_markdown", "serialize_csv", "serialize_json"],
     )
     parser.add_argument(
         "--nolog",
