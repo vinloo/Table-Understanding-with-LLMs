@@ -8,7 +8,7 @@ import json
 
 class TableBench:
 
-    def get_prompt(self, table, question, formatter, experiment):
+    def get_prompt(self, table, question, formatter, experiment, shots=None):
 
         if experiment == "serialize_json":
             serialized_table = table
@@ -23,23 +23,75 @@ class TableBench:
                 serialized_table = table.to_markdown(index=False)
                 format = "Markdown"
 
-        prompt = ("You are a table analyst. Your task is to answer questions based on the table content.\n"
-        "\n\n"
-        f"{formatter}"
-        "\n\n"
-        "Give the final answer to the question directly without any explanation.\n"
-        "\n"
-        f"Read the table below in {format} format:\n"
-        "[TABLE]\n"
-        f"{serialized_table}\n"
-        "\n"
-        "Let's get start!\n"
-        f"Question: {question}\n\n"
-        "Final Answer: ")
+            if experiment == "few-shot":
+                serialized_table = table.to_markdown(index=False)
+                format = "Markdown"
+                prompt = ("You are a table analyst. Your task is to answer questions based on the table content.\n"
+                "\n\n"
+                f"{formatter}"
+                "\n\n"
+                "Give the final answer to the question directly without any explanation.\n\n"
+                f"Below are {len(shots)} examples of how to answer the question based on the table content.\n"
+                "\n\n")
+
+                for i, (shot_table, shot_question, shot_formatter, shot_label) in enumerate(shots):
+                    shot_table_json = json.loads(shot_table)
+                    shot_table = pd.DataFrame(shot_table_json['data'], columns=shot_table_json['columns'])
+                    serialized_shot_table = shot_table.to_markdown(index=False)
+                    prompt += (f"Example {i + 1}:\n"
+                    f"Read the table below in {format} format:\n"
+                    "[TABLE]\n"
+                    f"{serialized_shot_table}\n"
+                    "\n"
+                    f"Question: {shot_question}\n"
+                    f"Final Answer: {shot_label}\n\n")
+
+
+                prompt += (f"Now it's your turn. Read the table below in {format} format:\n"
+                "[TABLE]\n"
+                f"{serialized_table}\n"
+                "\n"
+                "Let's get start!\n"
+                f"Question: {question}\n"
+                "Final Answer: ")
+
+            
+            else:
+                prompt = ("You are a table analyst. Your task is to answer questions based on the table content.\n"
+                "\n\n"
+                f"{formatter}"
+                "\n\n"
+                "Give the final answer to the question directly without any explanation.\n"
+                "\n"
+                f"Read the table below in {format} format:\n"
+                "[TABLE]\n"
+                f"{serialized_table}\n"
+                "\n"
+                "Let's get start!\n"
+                f"Question: {question}\n\n"
+                "Final Answer: ")
         
         return prompt
+    
 
-    def run(self, model, experiment, batch_size):
+    def get_shots(self, main_table, ds_task, n_shots):
+        shot_ids = []
+        shots = []
+        while len(shots) < n_shots:
+            example = ds_task.shuffle()[0]
+            label = example.get("answer")
+            question = example.get("question")
+            table = example.get("table")
+            formatter = example.get("answer_formatter")
+
+            if table != main_table and example['id'] not in shot_ids:
+                shots.append((table, question, formatter, label))
+                shot_ids.append(example['id']) 
+
+        return shots
+
+
+    def run(self, model, experiment, batch_size, n_shots=5):
         metric_names = ["rouge"]
         subtasks = ["FactChecking", "NumericalReasoning", "DataAnalysis"] # we do not include Visualization as this does not fit the research
 
@@ -76,7 +128,11 @@ class TableBench:
                 if experiment == "baseline":
                     prompt = example.get("instruction")
                 else:
-                    prompt = self.get_prompt(table, question, formatter, experiment)
+                    shots = None
+                    if experiment == "few-shot":
+                        shots = self.get_shots(table, ds_task[split], n_shots)
+                    prompt = self.get_prompt(table, question, formatter, experiment, shots)
+
                 pred = model.generate(prompt, max_new_tokens=50).split(question)[-1]
                 
                 try:

@@ -5,7 +5,7 @@ from tqdm import tqdm
 
 class MMLU:
 
-    def get_prompt(self, question, options, experiment):
+    def get_prompt(self, question, options, experiment, shots=None):
         # baseline experiment
         if experiment == "baseline":
             choices = [f"{chr(65 + i)}) {options[i]}" for i in range(len(options))]
@@ -33,12 +33,37 @@ class MMLU:
 
             prompt += "\n\nAnswer: "
 
+        elif experiment == "few-shot":
+            prompt = (
+                "You are given a multiple-choice question. Carefully read the question "
+                "and select the correct answer from the provided options. Respond only "
+                "with the letter corresponding to the correct choice.\n"
+                f"Below are {len(shots)} examples of similar questions:\n\n"
+            )
+
+            if shots:
+                for i, shot in enumerate(shots):
+                    prompt += f"Example {i + 1}:\n"
+                    prompt += f"{shot}\n\n"
+
+            prompt += "Now, here is the question you have to answer:\n\n"
+            prompt += f"Question: {question}\n\nOptions:\n"
+            choices = [f"{chr(65 + i)}) {options[i]}" for i in range(len(options))]
+
+            for choice in choices:
+                prompt += f"\n{choice}"
+
+            prompt += "\n\nAnswer: "
+
+            
+
         return prompt
 
-    def run(self, model, experiment, batch_size=1):
+    def run(self, model, experiment, batch_size=1, n_shots=5):
         ds = load_dataset("cais/mmlu", "all")
 
         split = Split.TEST if Split.TEST in ds else (Split.VALIDATION if Split.VALIDATION in ds else Split.TRAIN)
+        few_shot_split = Split.TRAIN if Split.TRAIN in ds else (Split.VALIDATION if Split.VALIDATION in ds else Split.TEST)
 
         accuracy_metric = evaluate.load("accuracy")
 
@@ -54,7 +79,27 @@ class MMLU:
             question = example["question"]
             options = example["choices"]
             label = example["answer"]
-            prompt = self.get_prompt(question, options, experiment)
+
+            shots = None
+            if experiment == "few-shot":
+                shots = []
+                # take n_shots examples from ds[Split.TRAIN]
+                train_ds = ds[few_shot_split]
+                train_ds = train_ds.shuffle(seed=42)
+                train_ds = train_ds.select(range(n_shots))
+                examples = [train_ds[i] for i in range(n_shots)]
+                for shot in examples:
+                    shot_question = shot["question"]
+                    shot_options = shot["choices"]
+                    shot_label = shot["answer"]
+                    shot_string = f"Question: {shot_question}\n\nOptions:\n"
+                    for i, option in enumerate(shot_options):
+                        shot_string += f"\n{chr(65 + i)}) {option}"
+                    shot_string += "\n\nAnswer: " + chr(65 + shot_label)
+                    shots.append(shot_string)
+
+            prompt = self.get_prompt(question, options, experiment, shots=shots)
+            print(prompt)
 
             prompts.append(prompt)
             options_list.append(options)

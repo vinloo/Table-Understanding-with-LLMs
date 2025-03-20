@@ -23,7 +23,7 @@ def main():
         "-b",
         "--benchmark",
         type=str,
-        choices=["tabfact", "tabularbenchmark", "tablebench", "databench", "wikisql", "mmlu", "mmlu_pro"],
+        choices=["tabfact", "tablebench", "databench", "wikisql", "mmlu", "mmlu_pro"],
         required=True,
         help="Path to the benchmark config file."
     )
@@ -32,7 +32,7 @@ def main():
         "--experiment",
         type=str,
         default="baseline",
-        choices=["baseline", "explicit_prompt", "serialize_markdown", "serialize_csv", "serialize_json"],
+        choices=["baseline", "explicit_prompt", "serialize_markdown", "serialize_csv", "serialize_json", "few-shot"],
     )
     parser.add_argument(
         "--nolog",
@@ -82,7 +82,7 @@ def main():
     else:
         raise ValueError("Unsupported benchmark selected.")
 
-    results = benchmark.run(model, args.experiment, batch_size=args.batch_size)
+    results = benchmark.run(model, args.experiment, batch_size=args.batch_size, n_shots=5)
 
     print("Evaluation Results:")
     for metric, value in results.items():

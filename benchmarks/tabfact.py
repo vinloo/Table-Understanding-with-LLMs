@@ -4,10 +4,11 @@ import evaluate
 from tqdm import tqdm
 import pandas as pd
 from io import StringIO
+import random
 
 class TabFact:
 
-    def get_prompt(self, statement, table_text, table_caption, experiment):
+    def get_prompt(self, statement, table_text, table_caption, experiment, fewshot_table=None, fewshot_caption=None, shots=None):
         # Baseline experiment
         if experiment == "baseline":
             prompt = textwrap.dedent(f"""\
@@ -38,29 +39,105 @@ class TabFact:
                 serialized_table = table.to_json(index=False)
             elif experiment == "serialize_markdown":
                 serialized_table = table.to_markdown(index=False)
-            prompt = textwrap.dedent(f"""\
-                You are given a table and a statement. Your task is to determine whether the statement 
-                is supported by the information in the table (Entailed) or contradicts it (Refuted). 
 
-                Statement: {statement}
+            if experiment == "few-shot":
+                serialized_table = table.to_markdown(index=False)
+                serialized_fewshot_table = pd.read_csv(StringIO(fewshot_table), sep='#').to_markdown(index=False)
+                prompt = textwrap.dedent(f"""\
+                    You are given a table and a statement. Your task is to determine whether the statement 
+                    is supported by the information in the table (Entailed) or contradicts it (Refuted). 
 
-                Table:
-                """)
-            prompt += serialized_table
-            prompt += textwrap.dedent(f"""\
+                    Below are {len(shots)} examples of similar questions with the following table:
+                    """)
+                prompt += serialized_fewshot_table
+                prompt += textwrap.dedent(f"""\
 
-                Caption: {table_caption}
+                    Caption: {fewshot_caption}
 
-                Based on the table, choose the most accurate option:
+                    Examples:
+                    """)
+                for i, (shot, label) in enumerate(shots):
+                    prompt += textwrap.dedent(f"""\
+                        Example {i + 1}:
+                        Statement: {shot}
 
-                A) Refuted — The table contradicts the statement.
-                B) Entailed — The table supports the statement.
+                        Based on the table, choose the most accurate option:
 
-                Answer: """)
+                        A) Refuted — The table contradicts the statement.
+                        B) Entailed — The table supports the statement.
+
+                        Answer: {label}
+
+                        """)
+                prompt += textwrap.dedent(f"""\
+                    Now, here is the table and statement you have to answer:
+
+                    Table:
+                    """)
+                prompt += serialized_table
+                prompt += textwrap.dedent(f"""\
+
+                    Caption: {table_caption}
+
+                    Statement: {statement}
+
+                    Based on the table, choose the most accurate option:
+
+                    A) Refuted — The table contradicts the statement.
+                    B) Entailed — The table supports the statement.
+
+                    Answer: """)
+                
+            else:
+                prompt = textwrap.dedent(f"""\
+                    You are given a table and a statement. Your task is to determine whether the statement 
+                    is supported by the information in the table (Entailed) or contradicts it (Refuted). 
+
+                    Statement: {statement}
+
+                    Table:
+                    """)
+                prompt += serialized_table
+                prompt += textwrap.dedent(f"""\
+
+                    Caption: {table_caption}
+
+                    Based on the table, choose the most accurate option:
+
+                    A) Refuted — The table contradicts the statement.
+                    B) Entailed — The table supports the statement.
+
+                    Answer: """)
+            
             
         return prompt
+    
 
-    def run(self, model, experiment, batch_size=1):
+    def get_shots(self, ds, n_shots):
+        shots = []
+        few_shot_split = Split.TRAIN if Split.TRAIN in ds else (Split.VALIDATION if Split.VALIDATION in ds else Split.TEST)
+        for i in range(10):
+            try:
+                table_ids = ds[few_shot_split].unique("table_id")
+                table_id = random.choice(table_ids)
+                examples = ds[few_shot_split].filter(lambda x: x["table_id"] == table_id).select(range(n_shots))
+                break
+            except IndexError:
+                if i == 9:
+                    raise IndexError(f"No table with {n_shots} related questions found in 10 attempts")
+                continue
+
+        fewshot_table = examples[0]["table_text"]
+        fewshot_caption = examples[0]["table_caption"]
+
+        for example in examples:
+            example_label = "A" if example["label"] == 0 else "B"
+            shots.append((example["statement"], example_label))
+
+        return shots, fewshot_table, fewshot_caption
+
+
+    def run(self, model, experiment, batch_size=1, n_shots=5,):
         ds = load_dataset("wenhu/tab_fact", "tab_fact", trust_remote_code=True)
         split = Split.TEST
         if Split.TEST not in ds:
@@ -70,12 +147,29 @@ class TabFact:
         references = []
         prompts = []
         labels = []
-        for example in tqdm(ds[split], desc="Processing TabFact examples"):
+
+        shots = None
+        fewshot_table = None
+        fewshot_caption = None
+        
+
+        for i, example in enumerate(tqdm(ds[split], desc="Processing TabFact examples")):
             statement = example.get("statement")
             label = example.get("label")
             table_text = example.get("table_text")
             table_caption = example.get("table_caption")
-            prompt = self.get_prompt(statement=statement, table_text=table_text, table_caption=table_caption, experiment=experiment)
+
+            if experiment == "few-shot" and i % 100 == 0:
+                shots, fewshot_table, fewshot_caption = self.get_shots(ds, n_shots)
+
+            prompt = self.get_prompt(statement=statement, 
+                                     table_text=table_text, 
+                                     table_caption=table_caption, 
+                                     experiment=experiment, 
+                                     fewshot_table=fewshot_table, 
+                                     fewshot_caption=fewshot_caption, 
+                                     shots=shots)
+            
             prompts.append(prompt)
             labels.append(label)
             if len(prompts) == batch_size:
