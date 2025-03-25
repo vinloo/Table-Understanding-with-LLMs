@@ -67,7 +67,7 @@ class DataBench:
                         shot_label = shot_label.lower()
                     #int or float
                     elif shot_label.replace('.','',1).replace('-','',1).isdigit() and not (not shot_label.startswith('-') and "-" in shot_label):
-                        shot_label = float(shot_label)
+                        shot_label = str(float(shot_label))
                     elif not shot_label.startswith("[") and not shot_label.endswith("]"):
                         if not shot_label.startswith('"') and not shot_label.endswith('"') and not shot_label.startswith("'") and not shot_label.endswith("'"):
                             shot_label = shot_label.lower()
@@ -158,8 +158,7 @@ class DataBench:
         # batching does not work for this benchmark
         metric_names = ["accuracy"]
         ds = load_dataset("cardiffnlp/databench", "qa")
-        # subtasks = ["list[number]", "boolean", "category", "number", "list[category]"]
-        subtasks = ["number"]
+        subtasks = ["list[number]", "boolean", "category", "number", "list[category]"]
 
         split = Split.TEST
         if Split.TEST not in ds:
