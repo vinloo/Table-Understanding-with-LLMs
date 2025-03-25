@@ -6,6 +6,9 @@ from json.decoder import JSONDecodeError
 from tqdm import tqdm
 import pandas as pd
 from io import StringIO
+import os
+import hashlib
+import dotenv
 
 class DataBench:
 
@@ -43,7 +46,6 @@ class DataBench:
             if experiment == "few-shot":
                 serialized_table = table.to_markdown(index=False)
                 serialized_shot_table = shots_table.to_markdown(index=False)
-                print(shots, flush=True)
                 prompt = ("You are an assistant tasked with answering the questions asked of a given table in Markdown format.\n" 
                 "You must answer in a single JSON with two fields:\n"
                 '    * "answer": answer using information from\n'
@@ -64,8 +66,8 @@ class DataBench:
                     elif shot_label in ["True", "False"]:
                         shot_label = shot_label.lower()
                     #int or float
-                    elif shot_label.replace('.','',1).replace('-','',1).isdigit():
-                        shot_label = str(float(shot_label))
+                    elif shot_label.replace('.','',1).replace('-','',1).isdigit() and not (not shot_label.startswith('-') and "-" in shot_label):
+                        shot_label = float(shot_label)
                     elif not shot_label.startswith("[") and not shot_label.endswith("]"):
                         if not shot_label.startswith('"') and not shot_label.endswith('"') and not shot_label.startswith("'") and not shot_label.endswith("'"):
                             shot_label = shot_label.lower()
@@ -75,11 +77,11 @@ class DataBench:
                         new_shot_label = []
                         for item in shot_label[1:-1].split(","):
                             item = item.strip()
-                            if item.replace('.','',1).replace('-','',1).isdigit():
+                            if item.replace('.','',1).replace('-','',1).isdigit() and not (not item.startswith('-') and "-" in item):
                                 item = float(item)
                             elif item in ["True", "False"]:
                                 item = item.lower()
-                            elif not item.startswith('"') and not item.endswith('"') and not item.startswith("'") and not item.endswith("'"):
+                            elif not item.startswith('"') and not item.endswith('"') and not item.startswith("'"):
                                 item = f'"{item}"'
                             new_shot_label.append(item)
                         shot_label = str(new_shot_label)
@@ -135,11 +137,29 @@ class DataBench:
         return correct / len(predictions) if references else 0.0
 
 
+    def read_parquet_with_cache(self, file_path):
+        """Reads a parquet file with caching."""
+        dotenv.load_dotenv()
+        cache_dir = os.getenv("PARQUET_CACHE_DIR", "cache")
+        os.makedirs(cache_dir, exist_ok=True)
+
+        # Generate a unique hash for the file path
+        file_hash = hashlib.md5(file_path.encode()).hexdigest()
+        cached_file_path = os.path.join(cache_dir, f"{file_hash}.parquet")
+
+        if os.path.exists(cached_file_path):
+            return pd.read_parquet(cached_file_path)
+        else:
+            df = pd.read_parquet(file_path)
+            df.to_parquet(cached_file_path)
+            return df
+
     def run(self, model, experiment, batch_size=None, n_shots=5):
         # batching does not work for this benchmark
         metric_names = ["accuracy"]
         ds = load_dataset("cardiffnlp/databench", "qa")
-        subtasks = ["list[number]", "boolean", "category", "number", "list[category]"]
+        # subtasks = ["list[number]", "boolean", "category", "number", "list[category]"]
+        subtasks = ["number"]
 
         split = Split.TEST
         if Split.TEST not in ds:
@@ -166,37 +186,37 @@ class DataBench:
         for task in subtasks:
             ds_task = ds.filter(lambda x: x['type'] == task)
             shots = None
+            shots_table = None
             for i, example in enumerate(tqdm(ds_task[split], total=len(ds_task[split]))):
                 label = example.get("sample_answer")
                 question = example.get("question")
                 
                 table_id = example['dataset']
-                table = pd.read_parquet(f"hf://datasets/cardiffnlp/databench/data/{table_id}/sample.parquet")
+                table = self.read_parquet_with_cache(f"hf://datasets/cardiffnlp/databench/data/{table_id}/sample.parquet")
 
                 
                 if experiment == "few-shot" and i % 50 == 0:
                     shots_table_id = table_id
-                    shots_max_samples = 0
-                    while shots_table_id == table_id or shots_max_samples < n_shots:
+                    while shots_table_id == table_id:
                         shots_table_id = ds_task[split].shuffle()[0]['dataset']
-                        shots_all_samples = ds_task[split].filter(lambda x: x['dataset'] == shots_table_id)
-                        shots_max_samples = len(shots_all_samples)
-                        if shots_max_samples >= n_shots and shots_table_id != table_id:
-                            shots_table = pd.read_parquet(f"hf://datasets/cardiffnlp/databench/data/{shots_table_id}/sample.parquet")
-                            if len(str(shots_table)) > 5000:
-                                shots_max_samples = 0
+                    shots_all_samples = ds_task[split].filter(lambda x: x['dataset'] == shots_table_id)
+                    shots_table = self.read_parquet_with_cache(f"hf://datasets/cardiffnlp/databench/data/{shots_table_id}/sample.parquet")
                     
                     # shots_table = pd.read_parquet(f"hf://datasets/cardiffnlp/databench/data/{shots_table_id}/sample.parquet")
-                    shots = shots_all_samples.shuffle()[:n_shots]
+                    shots = {}
+                    shots["question"] = shots_all_samples['question'][:n_shots]
+                    shots["sample_answer"] = shots_all_samples['sample_answer'][:n_shots]
 
-                
                 prompt = self.get_prompt(table, question, experiment, shots=shots, shots_table=shots_table)
 
                 if len(prompt) > 15000:
                     continue
 
                 pred = model.generate(prompt, max_new_tokens=50)
-                pred = pred.split("ASSISTANT: ")[n_shots + 1].strip()
+                if experiment == "few-shot":
+                    pred = pred.split("ASSISTANT: ")[len(shots["question"]) + 1].strip()
+                else:
+                    pred = pred.split("ASSISTANT: ")[1].strip()
 
                 try:
                     # try to get from the first opeining bracket to the last closing bracket

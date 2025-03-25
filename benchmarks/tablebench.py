@@ -13,6 +13,20 @@ class TableBench:
         if experiment == "serialize_json":
             serialized_table = table
             format = "JSON"
+
+            prompt = ("You are a table analyst. Your task is to answer questions based on the table content.\n"
+                "\n\n"
+                f"{formatter}"
+                "\n\n"
+                "Give the final answer to the question directly without any explanation.\n"
+                "\n"
+                f"Read the table below in {format} format:\n"
+                "[TABLE]\n"
+                f"{serialized_table}\n"
+                "\n"
+                "Let's get start!\n"
+                f"Question: {question}\n\n"
+                "Final Answer: ")
         else:
             table_json = json.loads(table)
             table = pd.DataFrame(table_json['data'], columns=table_json['columns'])

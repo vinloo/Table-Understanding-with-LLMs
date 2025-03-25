@@ -50,6 +50,12 @@ def main():
         default=1,
         help="Batch size for processing prompts."
     )
+    parser.add_argument(
+        "--n_shots",
+        type=int,
+        default=5,
+        help="Number of shots for few-shot learning."
+    )
     args = parser.parse_args()
 
     experiment_name = args.model + "-" + args.benchmark + "-" + args.experiment + "-" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -82,7 +88,7 @@ def main():
     else:
         raise ValueError("Unsupported benchmark selected.")
 
-    results = benchmark.run(model, args.experiment, batch_size=args.batch_size, n_shots=5)
+    results = benchmark.run(model, args.experiment, batch_size=args.batch_size, n_shots=args.n_shots)
 
     print("Evaluation Results:")
     for metric, value in results.items():
