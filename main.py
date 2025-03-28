@@ -53,7 +53,7 @@ def main():
     parser.add_argument(
         "--n_shots",
         type=int,
-        default=5,
+        default=3,
         help="Number of shots for few-shot learning."
     )
     args = parser.parse_args()

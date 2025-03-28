@@ -109,7 +109,7 @@ class TableBench:
         metric_names = ["rouge"]
         subtasks = ["FactChecking", "NumericalReasoning", "DataAnalysis"] # we do not include Visualization as this does not fit the research
 
-        ds = load_dataset("Multilingual-Multimodal-NLP/TableBench")
+        ds = load_dataset("Multilingual-Multimodal-NLP/TableBench", revision="90593ad8af90f027f6f478b8c4c1981d9f073a83")
         ds = ds.filter(lambda x: x['instruction_type'] == 'DP')
 
         split = Split.TEST
@@ -134,6 +134,8 @@ class TableBench:
 
         for task in subtasks:
             ds_task = ds.filter(lambda x: x['qtype'] == task)
+            print(ds_task, flush=True)
+
             for example in tqdm(ds_task[split], total=len(ds_task[split])):
                 label = example.get("answer")
                 question = example.get("question")

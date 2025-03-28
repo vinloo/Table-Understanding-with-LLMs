@@ -99,7 +99,6 @@ class MMLU:
                     shots.append(shot_string)
 
             prompt = self.get_prompt(question, options, experiment, shots=shots)
-            print(prompt)
 
             prompts.append(prompt)
             options_list.append(options)
