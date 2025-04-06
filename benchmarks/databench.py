@@ -212,10 +212,14 @@ class DataBench:
                     continue
 
                 pred = model.generate(prompt, max_new_tokens=50)
+
                 if experiment == "few-shot":
                     pred = pred.split("ASSISTANT: ")[len(shots["question"]) + 1].strip()
                 else:
                     pred = pred.split("ASSISTANT: ")[1].strip()
+
+                pred = pred.replace("{{", "{")
+                pred = pred.replace("}}", "}")
 
                 try:
                     # try to get from the first opeining bracket to the last closing bracket
