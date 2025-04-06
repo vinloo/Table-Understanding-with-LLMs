@@ -8,7 +8,7 @@ class MMLUPro:
         if experiment == "baseline":
             choices = [f"{chr(65 + i)}) {options[i]}" for i in range(len(options))]
 
-            prompt = f"Questions: {question}\n\nOptions:\n"
+            prompt = f"Question: {question}\n\nOptions:\n"
 
             for choice in choices:
                 prompt += f"\n{choice}"

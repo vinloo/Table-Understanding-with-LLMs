@@ -1,4 +1,4 @@
-from datasets import load_dataset, Split
+from datasets import load_dataset, Split, Dataset
 import evaluate
 import re
 from tqdm import tqdm
@@ -134,7 +134,6 @@ class TableBench:
 
         for task in subtasks:
             ds_task = ds.filter(lambda x: x['qtype'] == task)
-            print(ds_task, flush=True)
 
             for example in tqdm(ds_task[split], total=len(ds_task[split])):
                 label = example.get("answer")
