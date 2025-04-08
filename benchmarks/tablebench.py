@@ -5,6 +5,7 @@ from tqdm import tqdm
 import textwrap
 import pandas as pd
 import json
+from .utils import serialize_sentence
 
 class TableBench:
 
@@ -36,6 +37,9 @@ class TableBench:
             elif experiment == "serialize_markdown":
                 serialized_table = table.to_markdown(index=False)
                 format = "Markdown"
+            elif experiment == "serialize_sentence":
+                serialized_table = serialize_sentence(table)
+                format = "Sentence"
 
             if experiment == "few-shot":
                 serialized_table = table.to_markdown(index=False)

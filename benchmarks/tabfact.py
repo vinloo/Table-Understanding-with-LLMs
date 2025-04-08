@@ -5,6 +5,7 @@ from tqdm import tqdm
 import pandas as pd
 from io import StringIO
 import random
+from .utils import serialize_sentence
 
 class TabFact:
 
@@ -39,6 +40,8 @@ class TabFact:
                 serialized_table = table.to_json(index=False)
             elif experiment == "serialize_markdown":
                 serialized_table = table.to_markdown(index=False)
+            elif experiment == "serialize_sentence":
+                serialized_table = serialize_sentence(table)
 
             if experiment == "few-shot":
                 serialized_table = table.to_markdown(index=False)
