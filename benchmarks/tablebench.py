@@ -92,6 +92,25 @@ class TableBench:
         return prompt
     
 
+    def get_tabular_attention_prompt(self, table, question, formatter):
+        table_json = json.loads(table)
+        table = pd.DataFrame(table_json['data'], columns=table_json['columns'])
+        prompt = ("You are a table analyst. Your task is to answer questions based on the table content.\n"
+                "\n\n"
+                f"{formatter}"
+                "\n\n"
+                "Give the final answer to the question directly without any explanation.\n"
+                "\n"
+                f"Read the table below:\n"
+                "[TABLE]\n")
+        prompt_table = table.to_csv(index=False, sep='\u0488')
+        prompt_post =  ("\n\n"
+                "Let's get start!\n"
+                f"Question: {question}\n\n"
+                "Final Answer: ")
+        return prompt, prompt_table, prompt_post
+    
+
     def get_shots(self, main_table, ds_task, n_shots):
         shot_ids = []
         shots = []
@@ -146,13 +165,21 @@ class TableBench:
                 formatter = example.get("answer_formatter")
                 if experiment == "baseline":
                     prompt = example.get("instruction")
-                else:
+                elif experiment != "tabular_attention":
                     shots = None
                     if experiment == "few-shot":
                         shots = self.get_shots(table, ds_task[split], n_shots)
                     prompt = self.get_prompt(table, question, formatter, experiment, shots)
 
-                pred = model.generate(prompt, max_new_tokens=50).split(question)[-1]
+                if experiment != "tabular_attention":
+                    pred = model.generate(prompt, max_new_tokens=50).split(question)[-1]
+                else:
+                    prompt_pre, prompt_table, prompt_post = self.get_tabular_attention_prompt(table, question, formatter)
+                    try:
+                        pred = model.generate_with_tabular_attention(prompt_pre, prompt_table, prompt_post, separator='\u0488').split(question)[-1]
+                    except Exception as e:
+                        print(f"Error in model generation: {e}")
+                        continue
                 
                 try:
                     match = re.search(r"Final Answer: (.+)", pred)

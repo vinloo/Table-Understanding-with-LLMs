@@ -6,6 +6,8 @@ import wandb
 import datetime
 from model import Model
 from benchmarks import TableBench, TabFact, MMLU, MMLUPro, DataBench, WikiSQL
+
+
 def main():
     dotenv.load_dotenv()
     login(os.environ.get("HF_TOKEN"))
@@ -32,7 +34,7 @@ def main():
         "--experiment",
         type=str,
         default="baseline",
-        choices=["baseline", "explicit_prompt", "serialize_markdown", "serialize_csv", "serialize_json", "serialize_sentence", "few-shot"],
+        choices=["baseline", "explicit_prompt", "serialize_markdown", "serialize_csv", "serialize_json", "serialize_sentence", "few-shot", "tabular_attention"],
     )
     parser.add_argument(
         "--nolog",
