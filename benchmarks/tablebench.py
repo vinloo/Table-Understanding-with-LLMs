@@ -92,9 +92,7 @@ class TableBench:
         return prompt
     
 
-    def get_tabular_attention_prompt(self, table, question, formatter):
-        table_json = json.loads(table)
-        table = pd.DataFrame(table_json['data'], columns=table_json['columns'])
+    def get_tabular_attention_prompt(self, question, formatter, separator=','):
         prompt = ("You are a table analyst. Your task is to answer questions based on the table content.\n"
                 "\n\n"
                 f"{formatter}"
@@ -103,12 +101,11 @@ class TableBench:
                 "\n"
                 f"Read the table below:\n"
                 "[TABLE]\n")
-        prompt_table = table.to_csv(index=False, sep='\u0488')
         prompt_post =  ("\n\n"
                 "Let's get start!\n"
                 f"Question: {question}\n\n"
                 "Final Answer: ")
-        return prompt, prompt_table, prompt_post
+        return prompt, prompt_post
     
 
     def get_shots(self, main_table, ds_task, n_shots):
@@ -174,11 +171,13 @@ class TableBench:
                 if experiment != "tabular_attention":
                     pred = model.generate(prompt, max_new_tokens=50).split(question)[-1]
                 else:
-                    prompt_pre, prompt_table, prompt_post = self.get_tabular_attention_prompt(table, question, formatter)
+                    prompt_pre, prompt_post = self.get_tabular_attention_prompt(question, formatter)
+                    table_json = json.loads(table)
+                    table = pd.DataFrame(table_json['data'], columns=table_json['columns'])
                     try:
-                        pred = model.generate_with_tabular_attention(prompt_pre, prompt_table, prompt_post, separator='\u0488').split(question)[-1]
+                        pred = model.generate_with_tabular_attention(prompt_pre, table, prompt_post, separator=',').split(question)[-1]
                     except Exception as e:
-                        print(f"Error in model generation: {e}")
+                        print(f"Error in model generation: {e}", flush=True)
                         continue
                 
                 try:
