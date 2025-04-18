@@ -41,7 +41,7 @@ class Model:
                 model_map[model_name], 
                 trust_remote_code=True,
                 device_map="auto",
-                # quantization_config=quantization_config,
+                quantization_config=quantization_config,
             )
         else:
             self.LLM = AutoModelForCausalLM.from_pretrained(
