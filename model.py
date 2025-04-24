@@ -11,10 +11,11 @@ from transformers.cache_utils import Cache
 from transformers.models.llama.modeling_llama import apply_rotary_pos_emb, repeat_kv
 from transformers.models.llama.configuration_llama import LlamaConfig
 from transformers.modeling_flash_attention_utils import FlashAttentionKwargs
+from peft import PeftModel, PeftConfig
 
 class Model:
 
-    def __init__(self, model_name):
+    def __init__(self, model_name, LoRA_path=None):
 
         model_map = {
             "llama3.1:8b": "meta-llama/Llama-3.1-8b",
@@ -49,6 +50,10 @@ class Model:
                 trust_remote_code=True,
             )
             self.LLM.to("cuda")
+
+        if LoRA_path is not None:
+            self.LLM = PeftModel.from_pretrained(self.LLM, LoRA_path)
+            print("LoRA loaded from:", LoRA_path, flush=True)
 
         self.device = next(self.LLM.parameters()).device
 

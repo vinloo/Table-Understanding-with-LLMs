@@ -34,7 +34,7 @@ class TableBench:
             if experiment == "serialize_csv":
                 serialized_table = table.to_csv(index=False)
                 format = "CSV"
-            elif experiment == "serialize_markdown":
+            elif experiment == "serialize_markdown" or experiment == "eval_grpo":
                 serialized_table = table.to_markdown(index=False)
                 format = "Markdown"
             elif experiment == "serialize_sentence":
@@ -129,7 +129,11 @@ class TableBench:
         metric_names = ["rouge"]
         subtasks = ["FactChecking", "NumericalReasoning", "DataAnalysis"] # we do not include Visualization as this does not fit the research
 
-        ds = load_dataset("Multilingual-Multimodal-NLP/TableBench", revision="90593ad8af90f027f6f478b8c4c1981d9f073a83")
+        if experiment != "eval_grpo":
+            ds = load_dataset("Multilingual-Multimodal-NLP/TableBench", revision="90593ad8af90f027f6f478b8c4c1981d9f073a83")
+        else:
+            ds = load_dataset("Multilingual-Multimodal-NLP/TableInstruct")
+
         ds = ds.filter(lambda x: x['instruction_type'] == 'DP')
 
         split = Split.TEST
@@ -155,18 +159,34 @@ class TableBench:
         for task in subtasks:
             ds_task = ds.filter(lambda x: x['qtype'] == task)
 
-            for example in tqdm(ds_task[split], total=len(ds_task[split])):
-                label = example.get("answer")
+            ds_task_split = ds_task[split]
+            if len(ds_task_split) > 500:
+                ds_task_split = ds_task_split.shuffle(seed=42).select(range(500))
+
+            for example in tqdm(ds_task_split, total=len(ds_task_split)):
+
+                if experiment == "eval_grpo":
+                    label = example.get("response").split("Final Answer: ")[-1]
+                    formatter = example.get("instruction").split("\n\n\n")[1]
+                else:
+                    label = example.get("answer")
+                    formatter = example.get("answer_formatter")
+
+
                 question = example.get("question")
                 table = example.get("table")
-                formatter = example.get("answer_formatter")
+                
                 if experiment == "baseline":
                     prompt = example.get("instruction")
                 elif experiment != "tabular_attention":
                     shots = None
                     if experiment == "few-shot":
-                        shots = self.get_shots(table, ds_task[split], n_shots)
-                    prompt = self.get_prompt(table, question, formatter, experiment, shots)
+                        shots = self.get_shots(table, ds_task_split, n_shots)
+                    try:
+                        prompt = self.get_prompt(table, question, formatter, experiment, shots)
+                    except Exception as e:
+                        print(f"Error in prompt generation: {e}", flush=True)
+                        continue
 
                 if experiment != "tabular_attention":
                     pred = model.generate(prompt, max_new_tokens=50).split(question)[-1]

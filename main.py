@@ -34,7 +34,7 @@ def main():
         "--experiment",
         type=str,
         default="baseline",
-        choices=["baseline", "explicit_prompt", "serialize_markdown", "serialize_csv", "serialize_json", "serialize_sentence", "few-shot", "tabular_attention"],
+        choices=["baseline", "explicit_prompt", "serialize_markdown", "serialize_csv", "serialize_json", "serialize_sentence", "few-shot", "tabular_attention", "eval_grpo"],
     )
     parser.add_argument(
         "--nolog",
@@ -58,6 +58,12 @@ def main():
         default=3,
         help="Number of shots for few-shot learning."
     )
+    parser.add_argument(
+        "--lora_path",
+        type=str,
+        default=None,
+        help="Path to the saved LoRA adapter."
+    )
     args = parser.parse_args()
 
     experiment_name = args.model + "-" + args.benchmark + "-" + args.experiment + "-" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -73,7 +79,7 @@ def main():
         mode=wandb_mode
     )
 
-    model = Model(args.model)
+    model = Model(args.model, args.lora_path)
         
     if args.benchmark == "tablebench":
         benchmark = TableBench()

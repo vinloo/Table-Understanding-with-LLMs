@@ -17,3 +17,5 @@ peft
 bitsandbytes
 triton
 tabulate
+trl
+peft
