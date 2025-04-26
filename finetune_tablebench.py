@@ -3,6 +3,7 @@ from trl import GRPOTrainer, GRPOConfig
 from benchmarks.tablebench import TableBench
 import re
 import dotenv
+import string
 import os
 from huggingface_hub import login
 import wandb
@@ -23,6 +24,8 @@ wandb.init(
 
 dataset = load_dataset("Multilingual-Multimodal-NLP/TableBench", revision="90593ad8af90f027f6f478b8c4c1981d9f073a83", split="test")
 dataset = dataset.filter(lambda x: x['instruction_type'] == 'DP')
+# dataset = dataset.filter(lambda x: x['qtype'] == 'FactChecking')
+dataset = dataset.shuffle(seed=42)
 
 formatted_dataset = []
 for example in dataset:
@@ -46,18 +49,35 @@ for example in dataset:
 
 dataset = Dataset.from_list(formatted_dataset)
 
+def normalize_answer(s):
+    def remove_punctuation(text):
+        return text.translate(str.maketrans('', '', string.punctuation))
+    
+    def lower(text):
+        return text.lower()
+    
+    def white_space_fix(text):
+        return " ".join(text.split())
+
+    return white_space_fix(remove_punctuation(lower(s)))
+
 def tablebench_reward(completions, ground_truth, **kwargs):
     rewards = []
+    rouge = evaluate.load("rouge")
     for pred, ref in zip(completions, ground_truth):
         match = re.search(r"(.+)", pred)
-        if match:
-            pred = match.group(1)
-        else:
-            pred = ''
+        pred = match.group(1) if match else ''
+        
+        norm_pred = normalize_answer(pred)
+        norm_ref = normalize_answer(ref)
+        
+        if norm_pred == norm_ref:
+            rewards.append(1.0)
+            continue
 
-        rouge = evaluate.load("rouge")
-        rouge_score = rouge.compute(predictions=[pred], references=[ref])['rougeL']
+        rouge_score = rouge.compute(predictions=[pred], references=[ref])["rougeL"]
         rewards.append(rouge_score)
+
     return rewards
 
 trainer_args = GRPOConfig(
@@ -68,7 +88,14 @@ trainer_args = GRPOConfig(
     save_strategy="epoch",
     run_name="grpo-tablebench-serialize-md",
     per_device_train_batch_size=16,
-    num_generations=2
+    num_generations=16,
+    max_completion_length=50,
+    temperature=0.7,
+    top_k=50,
+    top_p=0.95,
+    beta=0.05,
+    gradient_accumulation_steps=4,
+    # gradient_checkpointing=True,
 )
 
 tokenizer = AutoTokenizer.from_pretrained("meta-llama/Llama-3.1-8b", revision="main")
@@ -78,20 +105,21 @@ tokenizer.pad_token = tokenizer.eos_token
 quantization_config = BitsAndBytesConfig(
     load_in_4bit=True,
     bnb_4bit_compute_dtype=torch.bfloat16,
-    bnb_4bit_quant_type="nf4"
+    bnb_4bit_quant_type="nf4",
+    bnb_4bit_use_double_quant=True
 )
 model = AutoModelForCausalLM.from_pretrained(
     "meta-llama/Llama-3.1-8b", 
     trust_remote_code=True,
     device_map="auto",
-    quantization_config=quantization_config,
+    # quantization_config=quantization_config,
 )
 
 lora_config = LoraConfig(
-    target_modules=["q_proj", "k_proj"],
-    r=8,
-    lora_alpha=16,
-    lora_dropout=0.1,
+    target_modules=["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj"],
+    r=64,
+    lora_alpha=64,
+    lora_dropout=0.0,
     bias="none",
     task_type="CAUSAL_LM",
 )
