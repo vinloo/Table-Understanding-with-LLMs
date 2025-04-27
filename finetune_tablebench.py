@@ -24,7 +24,6 @@ wandb.init(
 
 dataset = load_dataset("Multilingual-Multimodal-NLP/TableBench", revision="90593ad8af90f027f6f478b8c4c1981d9f073a83", split="test")
 dataset = dataset.filter(lambda x: x['instruction_type'] == 'DP')
-# dataset = dataset.filter(lambda x: x['qtype'] == 'FactChecking')
 dataset = dataset.shuffle(seed=42)
 
 formatted_dataset = []
@@ -102,17 +101,10 @@ tokenizer = AutoTokenizer.from_pretrained("meta-llama/Llama-3.1-8b", revision="m
 tokenizer.padding_side = "left" 
 tokenizer.pad_token = tokenizer.eos_token 
 
-quantization_config = BitsAndBytesConfig(
-    load_in_4bit=True,
-    bnb_4bit_compute_dtype=torch.bfloat16,
-    bnb_4bit_quant_type="nf4",
-    bnb_4bit_use_double_quant=True
-)
 model = AutoModelForCausalLM.from_pretrained(
     "meta-llama/Llama-3.1-8b", 
     trust_remote_code=True,
     device_map="auto",
-    # quantization_config=quantization_config,
 )
 
 lora_config = LoraConfig(

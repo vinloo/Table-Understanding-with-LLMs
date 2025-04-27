@@ -41,7 +41,7 @@ class DataBench:
                 serialized_table = table.to_csv(index=False)
             elif experiment == "serialize_json":
                 serialized_table = table.to_json(index=False)
-            elif experiment == "serialize_markdown":
+            elif experiment == "serialize_markdown" or experiment == "eval_grpo":
                 serialized_table = table.to_markdown(index=False)
             elif experiment == "serialize_sentence":
                 serialized_table = serialize_sentence(table)
@@ -160,12 +160,18 @@ class DataBench:
     def run(self, model, experiment, batch_size=None, n_shots=5):
         # batching does not work for this benchmark
         metric_names = ["accuracy"]
-        ds = load_dataset("cardiffnlp/databench", "qa")
+
+        if experiment != "eval_grpo":
+            ds = load_dataset("cardiffnlp/databench", "qa", split="train")
+        else:
+            ds = load_dataset("cardiffnlp/databench", "semeval", split="dev")
+        
+        
         subtasks = ["list[number]", "boolean", "category", "number", "list[category]"]
 
-        split = Split.TEST
-        if Split.TEST not in ds:
-            split = Split.VALIDATION if Split.VALIDATION in ds else Split.TRAIN
+        # split = Split.TEST
+        # if Split.TEST not in ds:
+        #     split = Split.VALIDATION if Split.VALIDATION in ds else Split.TRAIN
 
         metrics = {name: evaluate.load(name) for name in metric_names}
 
@@ -189,7 +195,7 @@ class DataBench:
             ds_task = ds.filter(lambda x: x['type'] == task)
             shots = None
             shots_table = None
-            for i, example in enumerate(tqdm(ds_task[split], total=len(ds_task[split]))):
+            for i, example in enumerate(tqdm(ds_task, total=len(ds_task))):
                 label = example.get("sample_answer")
                 question = example.get("question")
                 
@@ -200,8 +206,8 @@ class DataBench:
                 if experiment == "few-shot" and i % 50 == 0:
                     shots_table_id = table_id
                     while shots_table_id == table_id:
-                        shots_table_id = ds_task[split].shuffle()[0]['dataset']
-                    shots_all_samples = ds_task[split].filter(lambda x: x['dataset'] == shots_table_id)
+                        shots_table_id = ds_task.shuffle()[0]['dataset']
+                    shots_all_samples = ds_task.filter(lambda x: x['dataset'] == shots_table_id)
                     shots_table = self.read_parquet_with_cache(f"hf://datasets/cardiffnlp/databench/data/{shots_table_id}/sample.parquet")
                     
                     # shots_table = pd.read_parquet(f"hf://datasets/cardiffnlp/databench/data/{shots_table_id}/sample.parquet")

@@ -5,7 +5,7 @@ from tqdm import tqdm
 class MMLUPro:
     def get_prompt(self, question, options, experiment, shots=None):
         # baseline experiment
-        if experiment == "baseline":
+        if experiment == "baseline" or experiment == "eval_grpo":
             choices = [f"{chr(65 + i)}) {options[i]}" for i in range(len(options))]
 
             prompt = f"Question: {question}\n\nOptions:\n"

@@ -38,7 +38,7 @@ class TabFact:
                 serialized_table = table.to_csv(index=False)
             elif experiment == "serialize_json":
                 serialized_table = table.to_json(index=False)
-            elif experiment == "serialize_markdown":
+            elif experiment == "serialize_markdown" or experiment == "eval_grpo":
                 serialized_table = table.to_markdown(index=False)
             elif experiment == "serialize_sentence":
                 serialized_table = serialize_sentence(table)
