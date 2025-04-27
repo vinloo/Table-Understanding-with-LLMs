@@ -68,7 +68,7 @@ for example in dataset:
 
 dataset = Dataset.from_list(formatted_dataset)
 
-def parse_pred_label(pred, label, task):
+def parse_pred(pred):
     # pred = pred.split("ASSISTANT: ")[1].strip()
     pred = '{"answer":' + pred
 
@@ -90,109 +90,37 @@ def parse_pred_label(pred, label, task):
             except ValueError:
                 print("Failed to parse answer")
 
-    if task == "boolean":
-        if pred == 0:
-            pred = False
-        elif pred == 1:
-            pred = True
-
-        if label.lower() == "true":
-            label = True
-        elif label.lower() == "false":
-            label = False
-
-        if isinstance(pred, str):
-            pred = pred.split(",")[0].strip().lower()
-            if "true" in pred or "yes" in pred or "right" in pred or "1" in pred:
-                pred = True
-            elif "false" in pred or "no" in pred or "wrong" in pred or "0" in pred:
-                pred = False
-            else:
-                pred = not label
-                print("Failed to parse boolean")
-
-    elif task == "number":
-        if isinstance(pred, str):
-            pred = pred.split(",")[0].strip().lower().replace('"', '')
-            try:
-                pred = float(pred)
-            except ValueError:
-                print("Failed to parse number")
-        if label == "null" or label == "":
-            label = None
-        if label is not None:
-            label = float(label)
-
-    elif task == "category":
-        pred = str(pred)
-        pred = pred.split(",")[0].strip().lower()
-        pred = ''.join(e for e in pred if e.isalnum())
-        label = str(label)
-        label = ''.join(e for e in label if e.isalnum()).lower()
-
-    elif task == "list[number]":
-        if isinstance(pred, str):
-            pred = ''.join(e for e in pred if e.isalnum() or e in [",", "."])
-            pred = pred.split(",")
-            if not isinstance(pred, list):
-                pred = [pred]
-            pred = [x.strip().lower() for x in pred]
-            pred_float = []
-            for x in pred:
-                try:
-                    pred_float.append(float(x))
-                except ValueError:
-                    print("Failed to parse list of numbers")
-            pred = pred_float
-        if isinstance(label, str):
-            if label not in ["", "null", "[]", "['']"]:
-                label = ''.join(e for e in label if e.isalnum() or e in [",", "."])
-                label = label.split(",")
-                label = [x.strip().lower() for x in label]
-                label = [float(x) for x in label]
-
-    elif task == "list[category]":
-        pred = str(pred)
-        pred = ''.join(e for e in pred if e.isalnum() or e == ",")
-        pred = pred.split(",")
-        if not isinstance(pred, list):
-            pred = [pred]
-        pred = [x.strip().lower() for x in pred]
-        if label not in ["", None, "null", "[]", [], "['']"]:
-            label = ''.join(e for e in label if e.isalnum() or e == ",")
-            label = label.split(",")
-            label = [x.strip().lower() for x in label]
-
-    return pred, label
+    return pred
 
 
-def list_to_set(lst):
-    result = set()
-    for item in lst:
-        try:
-            result.add(item)
-        except TypeError:
-            continue  # Skip unhashable items
-    return result
+def normalize_answer(s):
+    def remove_punctuation(text):
+        return text.translate(str.maketrans('', '', string.punctuation))
+    
+    def lower(text):
+        return text.lower()
+    
+    def white_space_fix(text):
+        return " ".join(text.split())
+
+    return white_space_fix(remove_punctuation(lower(s)))
 
 
 def databench_reward(completions, ground_truth, task, **kwargs):
     rewards = []
+    rouge = evaluate.load("rouge")
     for pred, ref, tsk in zip(completions, ground_truth, task):
-        parsed_pred, parsed_ref = parse_pred_label(pred, ref, task=tsk)
+        parsed_pred = parse_pred(pred)
         
-        if isinstance(parsed_pred, list):
-            if not isinstance(parsed_ref, list):
-                parsed_ref = [parsed_ref]
-            overlap = list_to_set(parsed_pred).intersection(list_to_set(parsed_ref))
-            reward = len(overlap) / max(len(parsed_pred), len(parsed_ref))
-            reward = (reward - 0.5) * 2 # scale to [-1, 1]
-            rewards.append(reward)
-        else:
-            if parsed_pred == parsed_ref:
-                rewards.append(1.0)
-            else:
-                rewards.append(-1.0)
+        norm_pred = normalize_answer(parsed_pred)
+        norm_ref = normalize_answer(ref)
+        
+        if norm_pred == norm_ref:
+            rewards.append(1.0)
+            continue
+
+        rouge_score = rouge.compute(predictions=[pred], references=[ref])["rougeL"]
+        rewards.append(rouge_score)
 
     return rewards
 
