@@ -90,7 +90,7 @@ def parse_pred(pred):
             except ValueError:
                 print("Failed to parse answer")
 
-    return pred
+    return str(pred)
 
 
 def normalize_answer(s):
@@ -113,13 +113,13 @@ def databench_reward(completions, ground_truth, task, **kwargs):
         parsed_pred = parse_pred(pred)
         
         norm_pred = normalize_answer(parsed_pred)
-        norm_ref = normalize_answer(ref)
+        norm_ref = normalize_answer(str(ref))
         
         if norm_pred == norm_ref:
             rewards.append(1.0)
             continue
 
-        rouge_score = rouge.compute(predictions=[pred], references=[ref])["rougeL"]
+        rouge_score = rouge.compute(predictions=[norm_pred], references=[norm_ref])["rougeL"]
         rewards.append(rouge_score)
 
     return rewards

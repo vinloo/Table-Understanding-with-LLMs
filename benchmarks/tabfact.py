@@ -141,10 +141,8 @@ class TabFact:
 
 
     def run(self, model, experiment, batch_size=1, n_shots=5,):
-        ds = load_dataset("wenhu/tab_fact", "tab_fact", trust_remote_code=True)
-        split = Split.TEST
-        if Split.TEST not in ds:
-            split = Split.VALIDATION if Split.VALIDATION in ds else Split.TRAIN
+        ds = load_dataset("wenhu/tab_fact", "tab_fact", trust_remote_code=True, split="test")
+
         metrics = {name: evaluate.load(name) for name in ["accuracy"]}
         predictions = []
         references = []
@@ -156,7 +154,7 @@ class TabFact:
         fewshot_caption = None
         
 
-        for i, example in enumerate(tqdm(ds[split], desc="Processing TabFact examples")):
+        for i, example in enumerate(tqdm(ds, desc="Processing TabFact examples")):
             statement = example.get("statement")
             label = example.get("label")
             table_text = example.get("table_text")
