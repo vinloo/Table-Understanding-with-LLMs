@@ -18,7 +18,7 @@ login(os.environ.get("HF_TOKEN"))
 wandb.init(
     project=os.environ.get("WANDB_PROJECT", "table-understanding"),
     entity=os.environ.get("WANDB_ENTITY"),
-    name="GRPO-TableBench",
+    name="GRPO-TableBench-deepseek-llama8b",
     reinit=True,
 )
 
@@ -80,12 +80,12 @@ def tablebench_reward(completions, ground_truth, **kwargs):
     return rewards
 
 trainer_args = GRPOConfig(
-    output_dir="snellius/out/grpo-tablebench",
+    output_dir="snellius/out/grpo-tablebench-deepseek-llama8b",
     report_to=["wandb"],
     logging_strategy="steps",
     logging_steps=1,  
     save_strategy="epoch",
-    run_name="grpo-tablebench-serialize-md",
+    run_name="grpo-tablebench-deepseek-llama8b",
     per_device_train_batch_size=16,
     num_generations=16,
     max_completion_length=50,
@@ -97,12 +97,14 @@ trainer_args = GRPOConfig(
     # gradient_checkpointing=True,
 )
 
-tokenizer = AutoTokenizer.from_pretrained("meta-llama/Llama-3.1-8b", revision="main")
+# tokenizer = AutoTokenizer.from_pretrained("meta-llama/Llama-3.1-8b", revision="main")
+tokenizer = AutoTokenizer.from_pretrained("deepseek-ai/DeepSeek-R1-Distill-Llama-8B", revision="main")
 tokenizer.padding_side = "left" 
 tokenizer.pad_token = tokenizer.eos_token 
 
 model = AutoModelForCausalLM.from_pretrained(
-    "meta-llama/Llama-3.1-8b", 
+    # "meta-llama/Llama-3.1-8b", 
+    "deepseek-ai/DeepSeek-R1-Distill-Llama-8B",
     trust_remote_code=True,
     device_map="auto",
 )

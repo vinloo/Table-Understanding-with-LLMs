@@ -20,7 +20,8 @@ class Model:
         model_map = {
             "llama3.1:8b": "meta-llama/Llama-3.1-8b",
             "llama3:70b": "meta-llama/Llama-3.1-70B",
-            "jellyfish": "NECOUDBFM/Jellyfish-13B"
+            "jellyfish": "NECOUDBFM/Jellyfish-13B",
+            "deepseek-llama8b": "deepseek-ai/DeepSeek-R1-Distill-Llama-8B"
         }
 
         self.platform = os.environ.get("PLATFORM", "cluster")

@@ -34,7 +34,7 @@ class TableBench:
             if experiment == "serialize_csv":
                 serialized_table = table.to_csv(index=False)
                 format = "CSV"
-            elif experiment == "serialize_markdown" or experiment == "eval_grpo":
+            elif experiment in ["serialize_markdown", "eval_grpo", "cot-few-shot", "cot-zero-shot"]:
                 serialized_table = table.to_markdown(index=False)
                 format = "Markdown"
             elif experiment == "serialize_sentence":
@@ -73,6 +73,49 @@ class TableBench:
                 f"Question: {question}\n"
                 "Final Answer: ")
 
+            elif experiment in ["cot-few-shot"]:
+                prompt = ("You are a table analyst. Your task is to answer questions based on the table content.\n"
+                          f"Below are {len(shots)} examples of how to answer the question based on the table content.\n"
+                        "\n\n")
+
+                for i, (shot_table, shot_question, shot_formatter, shot_label) in enumerate(shots):
+                    shot_table_json = json.loads(shot_table)
+                    shot_table = pd.DataFrame(shot_table_json['data'], columns=shot_table_json['columns'])
+                    serialized_shot_table = shot_table.to_markdown(index=False)
+                    prompt += (f"Example {i + 1}:\n"
+                    f"Read the table below in {format} format:\n"
+                    "[TABLE]\n"
+                    f"{serialized_shot_table}\n"
+                    "\n\n"
+                    "First write up to 120 tokens of step-by-step reasoning.\n"
+                    "When you are completely finished, write:\n"
+                    f"Question: {shot_question}\n"
+                    "<reasoning here>\n"
+                    "===== FINAL ANSWER START =====\n"
+                    f"{shot_label}\n"
+                    "===== FINAL ANSWER END =====\n\n")
+                
+                prompt += ("Now it's your turn. Read the table below in Markdown format:\n""[TABLE]\n"
+                    f"{serialized_table}\n\n"
+                    "First write up to 120 tokens of step-by-step reasoning.\n"
+                    "When you are completely finished, write:\n"
+                    "===== FINAL ANSWER START =====\n"
+                    "<your concise answer here>\n"
+                    "===== FINAL ANSWER END =====\n\n"
+                    f"Question: {question}")
+                
+            elif experiment in ["cot-zero-shot"]:#, "eval_grpo"]:
+                prompt = ("You are a table analyst. Your task is to answer questions based on the table content.\n"
+                            f"Read the table below in Markdown format:\n"
+
+                            "[TABLE]\n"
+                            f"{serialized_table}\n\n"
+                            "First write up to 120 tokens of step-by-step reasoning.\n"
+                            "When you are completely finished, write:\n"
+                            "===== FINAL ANSWER START =====\n"
+                            "<your concise answer here>\n"
+                            "===== FINAL ANSWER END =====\n\n"
+                            f"Question: {question}\n\n")
             
             else:
                 prompt = ("You are a table analyst. Your task is to answer questions based on the table content.\n"
@@ -108,15 +151,20 @@ class TableBench:
         return prompt, prompt_post
     
 
-    def get_shots(self, main_table, ds_task, n_shots):
+    def get_shots(self, main_table, ds_task, n_shots, experiment):
         shot_ids = []
         shots = []
         while len(shots) < n_shots:
             example = ds_task.shuffle()[0]
-            label = example.get("answer")
+            if experiment == "eval_grpo":
+                label = example.get("response").split("Final Answer: ")[-1]
+                formatter = example.get("instruction").split("\n\n\n")[1]
+            else:
+                label = example.get("answer")
+                formatter = example.get("answer_formatter")
+
             question = example.get("question")
             table = example.get("table")
-            formatter = example.get("answer_formatter")
 
             if table != main_table and example['id'] not in shot_ids:
                 shots.append((table, question, formatter, label))
@@ -180,16 +228,20 @@ class TableBench:
                     prompt = example.get("instruction")
                 elif experiment != "tabular_attention":
                     shots = None
-                    if experiment == "few-shot":
-                        shots = self.get_shots(table, ds_task_split, n_shots)
+                    if experiment == "few-shot" or experiment == "cot-few-shot":
+                        shots = self.get_shots(table, ds_task_split, n_shots, experiment)
+                        print(shots, flush=True)
                     try:
                         prompt = self.get_prompt(table, question, formatter, experiment, shots)
                     except Exception as e:
                         print(f"Error in prompt generation: {e}", flush=True)
                         continue
 
-                if experiment != "tabular_attention":
+                if experiment != "tabular_attention" and experiment not in ["cot-zero-shot", "cot-few-shot"]:#, "eval_grpo"]:
                     pred = model.generate(prompt, max_new_tokens=50).split(question)[-1]
+                    # print(pred, flush=True)
+                elif experiment in ["cot-zero-shot", "cot-few-shot"]:#, "eval_grpo"]:
+                    pred = model.generate(prompt, max_new_tokens=150)
                 else:
                     prompt_pre, prompt_post = self.get_tabular_attention_prompt(question, formatter)
                     table_json = json.loads(table)
@@ -200,6 +252,20 @@ class TableBench:
                         print(f"Error in model generation: {e}", flush=True)
                         continue
                 
+                if experiment in ["cot-few-shot", "cot-zero-shot"]:#, "eval_grpo"]:
+                    print(f"UNFORMATTED: {pred}", flush=True)
+                    try:
+                        if experiment != "cot-few-shot":
+                            split_index = 2
+                        else:
+                            split_index = n_shots + 2
+                        pred = pred.split("===== FINAL ANSWER START =====")[split_index].split("===== FINAL ANSWER END =====")[0]
+                    except Exception as e:
+                        pred = pred.split("\n")[-1].strip()
+                    print("----------------------------------------------", flush=True)
+                    print(f"FORMATTED: {pred}", flush=True)
+                    print("----------------------------------------------\n\n\n\n", flush=True)
+
                 try:
                     match = re.search(r"Final Answer: (.+)", pred)
                     if match:

@@ -17,7 +17,7 @@ def main():
         "-m",
         "--model",
         type=str,
-        choices=["llama3.1:8b", "llama3:70b", "jellyfish"],
+        choices=["llama3.1:8b", "llama3:70b", "jellyfish", "deepseek-llama8b"],
         required=True,
         help="Model to use for evaluation."
     )
@@ -34,7 +34,7 @@ def main():
         "--experiment",
         type=str,
         default="baseline",
-        choices=["baseline", "explicit_prompt", "serialize_markdown", "serialize_csv", "serialize_json", "serialize_sentence", "few-shot", "tabular_attention", "eval_grpo"],
+        choices=["baseline", "explicit_prompt", "serialize_markdown", "serialize_csv", "serialize_json", "serialize_sentence", "few-shot", "cot-zero-shot", "cot-few-shot", "tabular_attention", "eval_grpo"],
     )
     parser.add_argument(
         "--nolog",
