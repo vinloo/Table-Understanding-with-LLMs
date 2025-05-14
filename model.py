@@ -21,7 +21,9 @@ class Model:
             "llama3.1:8b": "meta-llama/Llama-3.1-8b",
             "llama3:70b": "meta-llama/Llama-3.1-70B",
             "jellyfish": "NECOUDBFM/Jellyfish-13B",
-            "deepseek-llama8b": "deepseek-ai/DeepSeek-R1-Distill-Llama-8B"
+            "deepseek-llama8b": "deepseek-ai/DeepSeek-R1-Distill-Llama-8B",
+            "deepseek-qwen14b": "deepseek-ai/DeepSeek-R1-Distill-Qwen-14B",
+            "deepseek-qwen32b": "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B",
         }
 
         self.platform = os.environ.get("PLATFORM", "cluster")

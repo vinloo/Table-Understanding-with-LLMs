@@ -17,7 +17,7 @@ def main():
         "-m",
         "--model",
         type=str,
-        choices=["llama3.1:8b", "llama3:70b", "jellyfish", "deepseek-llama8b"],
+        choices=["llama3.1:8b", "llama3:70b", "jellyfish", "deepseek-llama8b", "deepseek-qwen14b", "deepseek-qwen32b"],
         required=True,
         help="Model to use for evaluation."
     )
